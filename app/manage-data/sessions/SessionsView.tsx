@@ -5,7 +5,6 @@ import { useState } from "react";
 export type Session = {
   id: string;
   dayOfWeek: string;
-  currentWeekDate: string;
   dinnerTime: string | null;
   startTime: string | null;
   endTime: string | null;
@@ -126,10 +125,7 @@ export default function SessionsView({
             <div className="flex items-start justify-between mb-5 shrink-0">
               <div>
                 <h2 className="text-base font-semibold text-white">{viewingStudentsSession.schoolName}</h2>
-                <p className="text-sm text-gray-400 mt-0.5">
-                  {viewingStudentsSession.dayOfWeek}
-                  {viewingStudentsSession.currentWeekDate && ` · ${shortDate(viewingStudentsSession.currentWeekDate)}`}
-                </p>
+                <p className="text-sm text-gray-400 mt-0.5">{viewingStudentsSession.dayOfWeek}</p>
               </div>
               <button onClick={() => setViewingStudentsSession(null)}
                 className="text-gray-500 hover:text-white transition-colors ml-4 shrink-0 mt-0.5">
@@ -214,7 +210,6 @@ export default function SessionsView({
             <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-4">
               <Field label="School" value={viewingDetailsSession.schoolName} />
               <Field label="Day of Week" value={viewingDetailsSession.dayOfWeek} />
-              <Field label="Date This Week" value={longDate(viewingDetailsSession.currentWeekDate)} />
               <Field label="Year Levels" value={viewingDetailsSession.yearLevels} />
               <Field label="Start Time" value={viewingDetailsSession.startTime} />
               <Field label="End Time" value={viewingDetailsSession.endTime} />
@@ -322,12 +317,7 @@ export default function SessionsView({
                         </p>
                       )}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <p className="text-slate-800 dark:text-slate-200">{row.dayOfWeek}</p>
-                      {row.currentWeekDate && (
-                        <p className="text-xs text-gray-500 mt-0.5">{shortDate(row.currentWeekDate)}</p>
-                      )}
-                    </td>
+                    <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400">{row.dayOfWeek}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400">{row.catererName}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400">{row.managerName ?? "—"}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400">{row.dinnerTime ?? "—"}</td>

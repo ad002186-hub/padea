@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase";
-import { getCurrentWeekRange, getWeekDates } from "@/lib/weekUtils";
 import SessionsView from "./SessionsView";
 
 export const revalidate = 0;
@@ -10,49 +9,42 @@ const DAY_ORDER: Record<string, number> = {
   Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6,
 };
 
-function daysAgo(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export default async function ManageSessionsPage() {
   noStore();
 
-  const { monday, friday } = getCurrentWeekRange();
-  const weekDates = getWeekDates();
-
-  const [{ data: sessionsData }, { data: weekExcData }, { data: fullCancData }] = await Promise.all([
-    // All sessions with all detail fields
+  const [{ data: sessionsData }, { data: fullCancData }, { data: partialCancData }] = await Promise.all([
+    // All active sessions with full detail fields
     supabaseAdmin
       .from("sessions")
-      .select("id, day_of_week, dinner_time, start_time, end_time, building, room, year_levels, manager_name, manager_email, manager_mobile, schools(name), caterers(name, contact_email)"),
+      .select("id, day_of_week, dinner_time, start_time, end_time, building, room, year_levels, manager_name, manager_email, manager_mobile, schools(name), caterers(name, contact_email)")
+      .eq("is_active", true),
 
-    // This week's exclusions (full + partial) — used to filter active list and add partial badges
+    // All full cancellations (cancelled_year_levels is null) — determines cancelled sessions
     supabaseAdmin
       .from("exclusions")
-      .select("id, session_id, cancelled_year_levels, date, reason")
-      .gte("date", monday)
-      .lte("date", friday),
-
-    // Last 30 days FULL cancellations only — for the Cancelled Sessions section
-    supabaseAdmin
-      .from("exclusions")
-      .select("id, date, reason, sessions(day_of_week, schools(name))")
-      .gte("date", daysAgo(30))
+      .select("id, session_id, date, reason, sessions(day_of_week, schools(name))")
       .is("cancelled_year_levels", null)
+      .order("date", { ascending: false }),
+
+    // All partial cancellations — most recent per session, for badges on active rows
+    supabaseAdmin
+      .from("exclusions")
+      .select("session_id, date, cancelled_year_levels, reason")
+      .not("cancelled_year_levels", "is", null)
       .order("date", { ascending: false }),
   ]);
 
-  // Build lookup maps from this week's exclusions
-  const fullCancIds = new Set<string>();
-  const partialCancMap = new Map<string, { date: string; yearLevels: number[]; reason: string | null }>();
+  // Sessions that have a full cancellation are excluded from the active list
+  const fullCancSessionIds = new Set(
+    (fullCancData ?? []).map((e: any) => e.session_id as string)
+  );
 
-  for (const exc of weekExcData ?? []) {
-    if ((exc as any).cancelled_year_levels === null) {
-      fullCancIds.add((exc as any).session_id);
-    } else {
-      partialCancMap.set((exc as any).session_id, {
+  // Most recent partial cancellation per session (for active row badges)
+  const partialCancMap = new Map<string, { date: string; yearLevels: number[]; reason: string | null }>();
+  for (const exc of partialCancData ?? []) {
+    const sid = (exc as any).session_id as string;
+    if (!partialCancMap.has(sid)) {
+      partialCancMap.set(sid, {
         date: (exc as any).date,
         yearLevels: (exc as any).cancelled_year_levels as number[],
         reason: (exc as any).reason ?? null,
@@ -60,15 +52,14 @@ export default async function ManageSessionsPage() {
     }
   }
 
-  // Active sessions = all sessions minus those with full cancellations this week
+  // Active sessions = is_active=true AND no full cancellation exclusion exists
   const sessions = (sessionsData ?? [])
-    .filter((row: any) => !fullCancIds.has(row.id as string))
+    .filter((row: any) => !fullCancSessionIds.has(row.id as string))
     .map((row: any) => {
       const yl = row.year_levels;
       return {
         id: row.id as string,
         dayOfWeek: row.day_of_week as string,
-        currentWeekDate: weekDates[row.day_of_week as string] ?? "",
         dinnerTime: row.dinner_time as string | null,
         startTime: row.start_time as string | null,
         endTime: row.end_time as string | null,
@@ -88,7 +79,7 @@ export default async function ManageSessionsPage() {
     })
     .sort((a, b) => (DAY_ORDER[a.dayOfWeek] ?? 9) - (DAY_ORDER[b.dayOfWeek] ?? 9));
 
-  // Cancelled sessions = full cancellations from last 30 days
+  // Cancelled sessions = all full cancellation exclusion records
   const cancelledSessions = (fullCancData ?? []).map((row: any) => ({
     id: row.id as string,
     date: row.date as string,
@@ -113,7 +104,7 @@ export default async function ManageSessionsPage() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Sessions</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              {sessions.length} active · {cancelledSessions.length} cancelled in the last 30 days.
+              {sessions.length} active · {cancelledSessions.length} full cancellation{cancelledSessions.length !== 1 ? "s" : ""} on record.
             </p>
           </div>
           <Link
