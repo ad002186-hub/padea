@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import ConfirmModal from "@/app/components/ui/ConfirmModal";
+import DatePicker from "@/app/components/DatePicker";
 
 export type Exclusion = {
   id: string;
@@ -114,7 +115,11 @@ export default function ExclusionsTable({ exclusions: initial }: { exclusions: E
             <div className="flex flex-col gap-5">
               <div>
                 <label className={ML}>Date</label>
-                <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className={MI} />
+                <DatePicker
+                  value={editDate}
+                  onChange={setEditDate}
+                  className={`flex items-center justify-between ${MI} cursor-pointer`}
+                />
               </div>
 
               <div>
@@ -196,11 +201,9 @@ export default function ExclusionsTable({ exclusions: initial }: { exclusions: E
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
           </div>
         </div>
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-          className={FI} title="From date" />
+        <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="From date" className={`${FI} min-w-36`} />
         <span className="text-slate-400 dark:text-gray-500 text-sm">to</span>
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-          className={FI} title="To date" />
+        <DatePicker value={dateTo} onChange={setDateTo} placeholder="To date" className={`${FI} min-w-36`} />
         {(schoolFilter || dateFrom || dateTo) && (
           <button onClick={() => { setSchoolFilter(""); setDateFrom(""); setDateTo(""); }}
             className="text-xs text-slate-400 dark:text-gray-500 hover:text-slate-900 dark:hover:text-white transition-colors">

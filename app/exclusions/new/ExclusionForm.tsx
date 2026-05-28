@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import DatePicker from "@/app/components/ui/DatePicker";
+import DatePicker from "@/app/components/DatePicker";
 import ConfirmModal from "@/app/components/ui/ConfirmModal";
 
 const I = "w-full rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-slate-50 dark:bg-[#0f1117] text-slate-900 dark:text-white text-sm px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors placeholder:text-slate-400 dark:placeholder:text-gray-500";
@@ -125,7 +125,12 @@ export default function ExclusionForm({ schools }: { schools: School[] }) {
 
           <div>
             <label className={L}>Exclusion Date</label>
-            <DatePicker value={date} onChange={setDate} inputClassName={`${I} pr-11`} />
+            <DatePicker
+              value={date}
+              onChange={setDate}
+              placeholder="Select exclusion date"
+              className="flex items-center justify-between w-full rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-slate-50 dark:bg-[#0f1117] text-sm px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors cursor-pointer"
+            />
             {dayOfWeek && (
               <p className="mt-2 text-xs text-[#7c3aed] font-medium">Affects the {dayOfWeek} session</p>
             )}
