@@ -12,11 +12,11 @@ type Student = {
   name: string;
 };
 
-const darkInputClass =
-  "w-full rounded-xl border border-[#2a2d3e] bg-[#0f1117] text-white text-sm px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors placeholder:text-gray-500";
+const inputClass =
+  "w-full rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-slate-50 dark:bg-[#0f1117] text-slate-900 dark:text-white text-sm px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors placeholder:text-slate-400 dark:placeholder:text-gray-500";
 
-const darkInputWithIconClass =
-  "w-full rounded-xl border border-[#2a2d3e] bg-[#0f1117] text-white text-sm px-4 py-3 pr-11 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors placeholder:text-gray-500";
+const inputWithIconClass =
+  "w-full rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-slate-50 dark:bg-[#0f1117] text-slate-900 dark:text-white text-sm px-4 py-3 pr-11 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors placeholder:text-slate-400 dark:placeholder:text-gray-500";
 
 export default function AbsenceForm({ schools }: { schools: School[] }) {
   const [schoolId, setSchoolId] = useState("");
@@ -109,17 +109,17 @@ export default function AbsenceForm({ schools }: { schools: School[] }) {
 
   if (success) {
     return (
-      <div className="rounded-2xl border border-[#2a2d3e] bg-[#1e2235] p-10 flex flex-col items-center text-center gap-5">
+      <div className="rounded-2xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-10 flex flex-col items-center text-center gap-5">
         <div className="w-14 h-14 rounded-full bg-[#10b981]/10 flex items-center justify-center">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-white mb-1">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
             {submittedCount} absence{submittedCount !== 1 ? "s" : ""} logged
           </h2>
-          <p className="text-sm text-slate-400">Recorded for {submittedDate}.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Recorded for {submittedDate}.</p>
         </div>
         <button
           onClick={reset}
@@ -148,24 +148,24 @@ export default function AbsenceForm({ schools }: { schools: School[] }) {
 
       <div className="flex flex-col gap-5">
         {/* School + Date card */}
-        <div className="rounded-2xl border border-[#2a2d3e] bg-[#1e2235] p-7 flex flex-col gap-6">
+        <div className="rounded-2xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-7 flex flex-col gap-6">
           {/* School */}
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+            <label className="block text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-2.5">
               School
             </label>
             <div className="relative">
               <select
                 value={schoolId}
                 onChange={handleSchoolChange}
-                className={`dark-select appearance-none ${darkInputClass} pr-10 cursor-pointer`}
+                className={`dark-select appearance-none ${inputClass} pr-10 cursor-pointer`}
               >
                 <option value="">Select a school…</option>
                 {schools.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7c3aed]">
+              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-[#7c3aed]">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
@@ -175,26 +175,26 @@ export default function AbsenceForm({ schools }: { schools: School[] }) {
 
           {/* Date */}
           <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+            <label className="block text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-2.5">
               Absence Date
             </label>
             <DatePicker
               value={date}
               onChange={setDate}
               placeholder="YYYY-MM-DD"
-              inputClassName={darkInputWithIconClass}
+              inputClassName={inputWithIconClass}
             />
           </div>
         </div>
 
         {/* Students panel */}
         {schoolId && (
-          <div className="rounded-2xl border border-[#2a2d3e] bg-[#1e2235] overflow-hidden">
-            <div className="flex items-center justify-between px-7 py-4 border-b border-[#2a2d3e]">
-              <h2 className="text-sm font-semibold text-white">
+          <div className="rounded-2xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] overflow-hidden">
+            <div className="flex items-center justify-between px-7 py-4 border-b border-slate-100 dark:border-[#2a2d3e]">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
                 Students
                 {students.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-gray-500">
+                  <span className="ml-2 text-xs font-normal text-slate-400 dark:text-gray-500">
                     {selected.size} of {students.length} selected
                   </span>
                 )}
@@ -203,7 +203,7 @@ export default function AbsenceForm({ schools }: { schools: School[] }) {
                 <button
                   type="button"
                   onClick={toggleAll}
-                  className="text-xs font-medium text-[#7c3aed] hover:text-[#a78bfa] transition-colors"
+                  className="text-xs font-medium text-[#7c3aed] hover:text-[#6d28d9] dark:hover:text-[#a78bfa] transition-colors"
                 >
                   {allSelected ? "Deselect all" : "Select all"}
                 </button>
@@ -220,20 +220,20 @@ export default function AbsenceForm({ schools }: { schools: School[] }) {
               </div>
             ) : students.length === 0 ? (
               <div className="px-7 py-10 text-center">
-                <p className="text-sm text-gray-500">No students found for this school.</p>
+                <p className="text-sm text-slate-400 dark:text-gray-500">No students found for this school.</p>
               </div>
             ) : (
-              <ul className="divide-y divide-[#2a2d3e] max-h-72 overflow-y-auto">
+              <ul className="divide-y divide-slate-100 dark:divide-[#2a2d3e] max-h-72 overflow-y-auto">
                 {students.map((student) => (
                   <li key={student.ssId}>
-                    <label className="flex items-center gap-3.5 px-7 py-3.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+                    <label className="flex items-center gap-3.5 px-7 py-3.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors">
                       <input
                         type="checkbox"
                         checked={selected.has(student.ssId)}
                         onChange={() => toggle(student.ssId)}
-                        className="w-4 h-4 rounded border-gray-600 accent-[#7c3aed] cursor-pointer shrink-0"
+                        className="w-4 h-4 rounded border-slate-300 dark:border-gray-600 accent-[#7c3aed] cursor-pointer shrink-0"
                       />
-                      <span className="text-sm text-slate-200">{student.name}</span>
+                      <span className="text-sm text-slate-800 dark:text-slate-200">{student.name}</span>
                     </label>
                   </li>
                 ))}

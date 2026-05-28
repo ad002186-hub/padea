@@ -66,10 +66,10 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex flex-col w-60 min-h-screen bg-slate-900 shrink-0">
+    <aside className="flex flex-col w-60 min-h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60 shrink-0 transition-colors duration-200">
       {/* Brand */}
-      <div className="px-6 py-6 border-b border-slate-700/60">
-        <span className="text-white text-xl font-semibold tracking-tight">Padea</span>
+      <div className="px-6 py-6 border-b border-slate-200 dark:border-slate-700/60">
+        <span className="text-slate-900 dark:text-white text-xl font-semibold tracking-tight">Padea</span>
       </div>
 
       {/* Navigation */}
@@ -84,8 +84,8 @@ export default function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-slate-700 text-white"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                  ? "bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
               {item.icon}
@@ -96,8 +96,8 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-slate-700/60">
-        <p className="text-xs text-slate-500">Padea v0.1</p>
+      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700/60">
+        <p className="text-xs text-slate-400 dark:text-slate-500">Padea v0.1</p>
       </div>
     </aside>
   );
