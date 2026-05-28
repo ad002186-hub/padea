@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 const navItems = [
@@ -69,7 +70,14 @@ export default function Sidebar() {
     <aside className="flex flex-col w-60 min-h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60 shrink-0 transition-colors duration-200">
       {/* Brand */}
       <div className="px-6 py-6 border-b border-slate-200 dark:border-slate-700/60">
-        <span className="text-slate-900 dark:text-white text-xl font-semibold tracking-tight">Padea</span>
+        <Image
+          src="/padea-logo.png"
+          alt="Padea"
+          width={120}
+          height={36}
+          className="invert dark:invert-0"
+          priority
+        />
       </div>
 
       {/* Navigation */}
