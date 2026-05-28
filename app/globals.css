@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: applies dark: utilities when .dark is on an ancestor */
+@variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
