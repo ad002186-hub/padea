@@ -5,18 +5,17 @@ import AbsencesTable from "./AbsencesTable";
 export default async function ManageAbsencesPage() {
   const { data, error } = await supabaseAdmin
     .from("absences")
-    .select("id, date, students(first_name, last_name), sessions(schools(name))")
+    .select("student_id, session_id, date, students(name), sessions(schools(name))")
     .order("date", { ascending: false });
 
   const absences = (data ?? []).map((row: any) => {
-    const s = row.students as { first_name?: string; last_name?: string } | null;
+    const s = row.students as { name?: string } | null;
     const school = row.sessions?.schools as { name?: string } | null;
     return {
-      id: row.id as string,
+      student_id: row.student_id as string,
+      session_id: row.session_id as string,
       date: row.date as string,
-      studentName: s
-        ? [s.first_name, s.last_name].filter(Boolean).join(" ") || "Unknown"
-        : "Unknown",
+      studentName: s?.name || "Unknown",
       schoolName: school?.name ?? "Unknown",
     };
   });
