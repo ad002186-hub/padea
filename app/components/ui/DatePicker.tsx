@@ -37,9 +37,10 @@ interface Props {
   value: string; // YYYY-MM-DD
   onChange: (value: string) => void;
   placeholder?: string;
+  inputClassName?: string;
 }
 
-export default function DatePicker({ value, onChange, placeholder = "YYYY-MM-DD" }: Props) {
+export default function DatePicker({ value, onChange, placeholder = "YYYY-MM-DD", inputClassName }: Props) {
   const [open, setOpen] = useState(false);
   const [inputText, setInputText] = useState(value);
   const [viewYear, setViewYear] = useState(() => {
@@ -110,7 +111,7 @@ export default function DatePicker({ value, onChange, placeholder = "YYYY-MM-DD"
           onChange={handleInputChange}
           onBlur={handleInputBlur}
           placeholder={placeholder}
-          className="w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-sm px-4 py-3 pr-11 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors placeholder:text-slate-400 dark:placeholder:text-gray-500"
+          className={inputClassName ?? "w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800/50 text-slate-900 dark:text-white text-sm px-4 py-3 pr-11 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 focus:border-[#7c3aed] transition-colors placeholder:text-slate-400 dark:placeholder:text-gray-500"}
         />
         <button
           type="button"
