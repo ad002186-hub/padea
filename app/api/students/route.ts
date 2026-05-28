@@ -3,15 +3,14 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
   const schoolId = request.nextUrl.searchParams.get("school_id");
-
   if (!schoolId) {
     return Response.json({ error: "school_id is required" }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
     .from("student_sessions")
-    .select("student_id, session_id, students(name)")
-    .eq("school_id", schoolId);
+    .select("student_id, session_id, students!inner(name, school_id)")
+    .eq("students.school_id", schoolId);
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
