@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("student_sessions")
-    .select("id, student_id, session_id, students(name)")
+    .select("student_id, session_id, students(name)")
     .eq("school_id", schoolId);
 
   if (error) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const s = row.students as { name?: string } | null;
     const name = s?.name || "Unknown";
     return {
-      ssId: row.id as string,
+      ssId: `${row.student_id}:${row.session_id}`,
       student_id: row.student_id as string,
       session_id: row.session_id as string,
       name,
