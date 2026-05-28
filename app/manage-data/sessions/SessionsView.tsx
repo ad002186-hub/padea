@@ -8,9 +8,6 @@ export type Session = {
   dinnerTime: string | null;
   startTime: string | null;
   endTime: string | null;
-  building: string | null;
-  room: string | null;
-  yearLevels: string | null;
   managerName: string | null;
   managerEmail: string | null;
   managerMobile: string | null;
@@ -210,12 +207,9 @@ export default function SessionsView({
             <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-4">
               <Field label="School" value={viewingDetailsSession.schoolName} />
               <Field label="Day of Week" value={viewingDetailsSession.dayOfWeek} />
-              <Field label="Year Levels" value={viewingDetailsSession.yearLevels} />
               <Field label="Start Time" value={viewingDetailsSession.startTime} />
               <Field label="End Time" value={viewingDetailsSession.endTime} />
               <Field label="Dinner Time" value={viewingDetailsSession.dinnerTime} />
-              <Field label="Building" value={viewingDetailsSession.building} />
-              <Field label="Room" value={viewingDetailsSession.room} />
             </div>
 
             <div className="border-t border-[#2a2d3e] pt-4 mb-4">
