@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase";
 import AbsencesTable from "./AbsencesTable";
 
+export const revalidate = 0;
+
 export default async function ManageAbsencesPage() {
+  noStore();
   const { data, error } = await supabaseAdmin
     .from("absences")
     .select("student_id, session_id, date, students(name), sessions(schools(name))")
