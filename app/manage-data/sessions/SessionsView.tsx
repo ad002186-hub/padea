@@ -344,7 +344,7 @@ export default function SessionsView({
         <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-4">
           Cancelled Sessions
           <span className="ml-2 text-sm font-normal text-slate-400 dark:text-gray-500">
-            (full cancellations · last 30 days · {filteredCancelled.length})
+            ({filteredCancelled.length})
           </span>
         </h2>
         {filteredCancelled.length === 0 ? (

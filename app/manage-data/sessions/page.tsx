@@ -12,10 +12,17 @@ const DAY_ORDER: Record<string, number> = {
 export default async function ManageSessionsPage() {
   noStore();
 
-  const { data, error } = await supabaseAdmin
-    .from("sessions")
-    .select("id, day_of_week, start_time, end_time, dinner_time, manager_name, manager_email, manager_mobile, schools(name), caterers(name)")
-    .eq("is_active", true);
+  const [{ data, error }, { data: fullCancData }] = await Promise.all([
+    supabaseAdmin
+      .from("sessions")
+      .select("id, day_of_week, start_time, end_time, dinner_time, manager_name, manager_email, manager_mobile, schools(name), caterers(name)")
+      .eq("is_active", true),
+    supabaseAdmin
+      .from("exclusions")
+      .select("id, date, reason, sessions(day_of_week, schools(name))")
+      .is("cancelled_year_levels", null)
+      .order("date", { ascending: false }),
+  ]);
 
   console.log("Sessions query result:", JSON.stringify({ data, error }, null, 2));
 
@@ -69,7 +76,13 @@ export default async function ManageSessionsPage() {
         </div>
       </div>
 
-      <SessionsView sessions={sessions} cancelledSessions={[]} />
+      <SessionsView sessions={sessions} cancelledSessions={(fullCancData ?? []).map((row: any) => ({
+          id: row.id as string,
+          date: row.date as string,
+          reason: row.reason as string | null,
+          schoolName: (row.sessions?.schools as { name?: string } | null)?.name ?? "Unknown",
+          dayOfWeek: (row.sessions as { day_of_week?: string } | null)?.day_of_week ?? "Unknown",
+        }))} />
     </div>
   );
 }
