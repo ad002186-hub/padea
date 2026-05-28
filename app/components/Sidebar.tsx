@@ -74,9 +74,8 @@ export default function Sidebar() {
           src="/padea-logo.png"
           alt="Padea"
           width={120}
-          height={36}
-          className="invert dark:invert-0"
-          priority
+          height={40}
+          className="dark:invert-0 invert"
         />
       </div>
 
