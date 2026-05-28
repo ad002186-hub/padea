@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentWeekRange } from "@/lib/weekUtils";
 
 const statCardStyles = [
   {
@@ -12,7 +13,7 @@ const statCardStyles = [
   },
   {
     label: "Active Sessions",
-    sub: "Today",
+    sub: "This week",
     color: "text-[#7c3aed]",
     bg: "dark:bg-[#7c3aed]/10 bg-violet-50",
     border: "dark:border-[#7c3aed]/20 border-violet-200",
@@ -37,15 +38,16 @@ const statCardStyles = [
 ];
 
 async function fetchStatCounts(): Promise<number[]> {
-  const [students, sessions, caterers, flags] = await Promise.all([
+  const { monday, friday } = getCurrentWeekRange();
+
+  const [students, allSessions, caterers, flags, weekExclusions] = await Promise.all([
     supabaseAdmin
       .from("students")
       .select("*", { count: "exact", head: true })
       .eq("is_active", true),
     supabaseAdmin
       .from("sessions")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true),
+      .select("id"),
     supabaseAdmin
       .from("caterers")
       .select("*", { count: "exact", head: true })
@@ -53,11 +55,25 @@ async function fetchStatCounts(): Promise<number[]> {
     supabaseAdmin
       .from("caterer_scores")
       .select("*", { count: "exact", head: true }),
+    // Full cancellations (all year levels) for this week
+    supabaseAdmin
+      .from("exclusions")
+      .select("session_id")
+      .gte("date", monday)
+      .lte("date", friday)
+      .is("cancelled_year_levels", null),
   ]);
+
+  const cancelledIds = new Set(
+    (weekExclusions.data ?? []).map((e: any) => e.session_id as string)
+  );
+  const activeThisWeek = (allSessions.data ?? []).filter(
+    (s: any) => !cancelledIds.has(s.id as string)
+  ).length;
 
   return [
     students.count ?? 0,
-    sessions.count ?? 0,
+    activeThisWeek,
     caterers.count ?? 0,
     flags.count ?? 0,
   ];

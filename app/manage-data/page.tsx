@@ -2,6 +2,11 @@ import Link from "next/link";
 
 const manageCards = [
   {
+    title: "Sessions",
+    description: "View active sessions, see student lists per session, and review cancellations.",
+    href: "/manage-data/sessions",
+  },
+  {
     title: "Absences",
     description: "View, search, and delete logged student absence records.",
     href: "/manage-data/absences",
