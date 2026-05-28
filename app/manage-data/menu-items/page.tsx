@@ -10,19 +10,30 @@ export default async function ManageMenuItemsPage() {
 
   const { data, error } = await supabaseAdmin
     .from("menu_items")
-    .select("id, name, is_active, is_gluten_free, is_dairy_free, is_nut_free, is_vegetarian, caterers(name)")
+    .select("id, name, is_active, is_gluten_free, is_dairy_free, is_nut_free, is_vegetarian, contains_pork, contains_beef, contains_lamb, contains_fish, contains_shellfish, contains_seafood, dietary_flags_known, caterers(id, name)")
     .order("name");
 
-  const items = (data ?? []).map((row: any) => ({
-    id: row.id as string,
-    name: row.name as string,
-    catererName: (row.caterers as { name?: string } | null)?.name ?? "Unknown",
-    isGlutenFree: row.is_gluten_free as boolean,
-    isDairyFree: row.is_dairy_free as boolean,
-    isNutFree: row.is_nut_free as boolean,
-    isVegetarian: row.is_vegetarian as boolean,
-    isActive: row.is_active as boolean ?? true,
-  }));
+  const items = (data ?? []).map((row: any) => {
+    const caterer = row.caterers as { id?: string; name?: string } | null;
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      catererId: caterer?.id ?? "",
+      catererName: caterer?.name ?? "Unknown",
+      isGlutenFree: row.is_gluten_free as boolean,
+      isDairyFree: row.is_dairy_free as boolean,
+      isNutFree: row.is_nut_free as boolean,
+      isVegetarian: row.is_vegetarian as boolean,
+      containsPork: row.contains_pork as boolean,
+      containsBeef: row.contains_beef as boolean,
+      containsLamb: row.contains_lamb as boolean,
+      containsFish: row.contains_fish as boolean,
+      containsShellfish: row.contains_shellfish as boolean,
+      containsSeafood: row.contains_seafood as boolean,
+      dietaryFlagsKnown: row.dietary_flags_known as boolean ?? true,
+      isActive: (row.is_active as boolean) ?? true,
+    };
+  });
 
   return (
     <div className="p-8 max-w-6xl mx-auto">

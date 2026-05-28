@@ -10,16 +10,21 @@ export default async function ManageStudentsPage() {
 
   const { data, error } = await supabaseAdmin
     .from("students")
-    .select("id, name, year_level, email, is_active, schools(name)")
+    .select("id, name, year_level, email, is_active, parent_name, parent_email, parent_mobile, school_id, schools(name), student_dietary_restrictions(restriction)")
     .order("name");
 
   const students = (data ?? []).map((row: any) => ({
     id: row.id as string,
     name: row.name as string,
+    schoolId: row.school_id as string,
     schoolName: (row.schools as { name?: string } | null)?.name ?? "Unknown",
     yearLevel: row.year_level as number | null,
     email: row.email as string | null,
-    isActive: row.is_active as boolean ?? true,
+    parentName: row.parent_name as string | null,
+    parentEmail: row.parent_email as string | null,
+    parentMobile: row.parent_mobile as string | null,
+    isActive: (row.is_active as boolean) ?? true,
+    dietaryRestrictions: ((row.student_dietary_restrictions as { restriction: string }[]) ?? []).map((d) => d.restriction),
   }));
 
   return (

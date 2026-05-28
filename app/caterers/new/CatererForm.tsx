@@ -25,7 +25,7 @@ export default function CatererForm({ schools }: { schools: School[] }) {
   const [contactEmail, setContactEmail] = useState("");
   const [ccName, setCcName] = useState("");
   const [ccEmail, setCcEmail] = useState("");
-  const [noCC, setNoCC] = useState(false);
+  const [wantsCc, setWantsCc] = useState(false);
   const [pricePerItem, setPricePerItem] = useState("");
   const [priceIncludesGst, setPriceIncludesGst] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState("");
@@ -70,9 +70,9 @@ export default function CatererForm({ schools }: { schools: School[] }) {
           name: name.trim(),
           contact_name: contactName.trim() || null,
           contact_email: contactEmail.trim() || null,
-          cc_name: noCC ? null : (ccName.trim() || null),
-          cc_email: noCC ? null : (ccEmail.trim() || null),
-          no_cc: noCC,
+          cc_name: wantsCc ? (ccName.trim() || null) : null,
+          cc_email: wantsCc ? (ccEmail.trim() || null) : null,
+          no_cc: !wantsCc,
           price_per_item: pricePerItem ? parseFloat(pricePerItem) : null,
           price_includes_gst: priceIncludesGst,
           delivery_fee: deliveryFee ? parseFloat(deliveryFee) : null,
@@ -96,7 +96,7 @@ export default function CatererForm({ schools }: { schools: School[] }) {
   function reset() {
     setSuccess(false);
     setName(""); setContactName(""); setContactEmail(""); setCcName(""); setCcEmail("");
-    setNoCC(false); setPricePerItem(""); setPriceIncludesGst(false); setDeliveryFee("");
+    setWantsCc(false); setPricePerItem(""); setPriceIncludesGst(false); setDeliveryFee("");
     setDeliveryFeeNote(""); setMinMeals4(""); setMinMeals5(""); setMinMeals6("");
     setEligibility(Object.fromEntries(schools.map((s) => [s.id, { selected: false, isCurrent: false }])));
     setError(null);
@@ -158,13 +158,13 @@ export default function CatererForm({ schools }: { schools: School[] }) {
 
           <div className="flex items-center justify-between py-1">
             <div>
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">No CC email</p>
-              <p className="text-xs text-slate-400 dark:text-gray-500 mt-0.5">Caterer has no CC contact</p>
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Wants to be CC'd on orders</p>
+              <p className="text-xs text-slate-400 dark:text-gray-500 mt-0.5">Send order copies to a CC contact</p>
             </div>
-            <Toggle checked={noCC} onChange={() => setNoCC((v) => !v)} />
+            <Toggle checked={wantsCc} onChange={() => setWantsCc((v) => !v)} />
           </div>
 
-          {!noCC && (
+          {wantsCc && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <label className={L}>CC Name</label>

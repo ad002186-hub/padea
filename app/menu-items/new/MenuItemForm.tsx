@@ -49,14 +49,22 @@ export default function MenuItemForm({ caterers }: { caterers: Caterer[] }) {
   const [containsShellfish, setContainsShellfish] = useState(false);
   const [containsSeafood, setContainsSeafood] = useState(false);
   const [dietaryFlagsKnown, setDietaryFlagsKnown] = useState(true);
-  const [hasDietaryConflict, setHasDietaryConflict] = useState(false);
-  const [conflictNote, setConflictNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const catererName = caterers.find((c) => c.id === catererId)?.name ?? "";
+
+  function handleFlagsKnownToggle() {
+    const next = !dietaryFlagsKnown;
+    setDietaryFlagsKnown(next);
+    if (!next) {
+      setIsGlutenFree(false); setIsDairyFree(false); setIsNutFree(false); setIsVegetarian(false);
+      setContainsPork(false); setContainsBeef(false); setContainsLamb(false);
+      setContainsFish(false); setContainsShellfish(false); setContainsSeafood(false);
+    }
+  }
 
   async function submit() {
     setSubmitting(true);
@@ -79,8 +87,6 @@ export default function MenuItemForm({ caterers }: { caterers: Caterer[] }) {
           contains_shellfish: containsShellfish,
           contains_seafood: containsSeafood,
           dietary_flags_known: dietaryFlagsKnown,
-          has_dietary_conflict: hasDietaryConflict,
-          conflict_note: hasDietaryConflict ? (conflictNote.trim() || null) : null,
         }),
       });
       const json = await res.json();
@@ -98,7 +104,7 @@ export default function MenuItemForm({ caterers }: { caterers: Caterer[] }) {
     setCatererId(""); setName(""); setIsGlutenFree(false); setIsDairyFree(false);
     setIsNutFree(false); setIsVegetarian(false); setContainsPork(false); setContainsBeef(false);
     setContainsLamb(false); setContainsFish(false); setContainsShellfish(false); setContainsSeafood(false);
-    setDietaryFlagsKnown(true); setHasDietaryConflict(false); setConflictNote(""); setError(null);
+    setDietaryFlagsKnown(true); setError(null);
   }
 
   const canSubmit = !!catererId && !!name.trim() && !submitting;
@@ -166,62 +172,44 @@ export default function MenuItemForm({ caterers }: { caterers: Caterer[] }) {
             <input type="text" value={name} onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Chicken Pasta" className={I} />
           </div>
-        </div>
-
-        {/* Dietary properties */}
-        <div className={CARD}>
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white -mb-2">Dietary Properties</h3>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3">This item is</p>
-            <div className="grid grid-cols-2 gap-3">
-              {dietaryChecks.map(({ label, val, set }) => (
-                <label key={label} className="flex items-center gap-2.5 cursor-pointer">
-                  <input type="checkbox" checked={val} onChange={() => set((v) => !v)}
-                    className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer shrink-0" />
-                  <span className="text-sm text-slate-800 dark:text-slate-200">{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3">Contains</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {containsChecks.map(({ label, val, set }) => (
-                <label key={label} className="flex items-center gap-2.5 cursor-pointer">
-                  <input type="checkbox" checked={val} onChange={() => set((v) => !v)}
-                    className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer shrink-0" />
-                  <span className="text-sm text-slate-800 dark:text-slate-200">{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           <Toggle
             checked={dietaryFlagsKnown}
-            onChange={() => setDietaryFlagsKnown((v) => !v)}
+            onChange={handleFlagsKnownToggle}
             label="Dietary flags known"
             sub="Turn off if allergen info is not yet confirmed"
           />
         </div>
 
-        {/* Conflict */}
-        <div className={CARD}>
-          <Toggle
-            checked={hasDietaryConflict}
-            onChange={() => setHasDietaryConflict((v) => !v)}
-            label="Has dietary conflict"
-            sub="This item may conflict with student restrictions"
-          />
-          {hasDietaryConflict && (
+        {/* Dietary properties — only shown when flags are known */}
+        {dietaryFlagsKnown && (
+          <div className={CARD}>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white -mb-2">Dietary Properties</h3>
             <div>
-              <label className={L}>Conflict Note</label>
-              <input type="text" value={conflictNote} onChange={(e) => setConflictNote(e.target.value)}
-                placeholder="Describe the conflict…" className={I} />
+              <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3">This item is</p>
+              <div className="grid grid-cols-2 gap-3">
+                {dietaryChecks.map(({ label, val, set }) => (
+                  <label key={label} className="flex items-center gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={val} onChange={() => set((v) => !v)}
+                      className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer shrink-0" />
+                    <span className="text-sm text-slate-800 dark:text-slate-200">{label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3">Contains</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {containsChecks.map(({ label, val, set }) => (
+                  <label key={label} className="flex items-center gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={val} onChange={() => set((v) => !v)}
+                      className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer shrink-0" />
+                    <span className="text-sm text-slate-800 dark:text-slate-200">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && <p className="text-sm text-[#ef4444] px-1">{error}</p>}
 

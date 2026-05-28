@@ -1,12 +1,22 @@
 import { supabaseAdmin } from "@/lib/supabase";
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const body = await request.json();
+  const { error } = await supabaseAdmin.from("exclusions").update(body).eq("id", id);
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ success: true });
+}
+
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   if (!id) return Response.json({ error: "id is required" }, { status: 400 });
-
   const { error } = await supabaseAdmin.from("exclusions").delete().eq("id", id);
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ success: true });
