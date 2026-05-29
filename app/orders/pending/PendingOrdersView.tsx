@@ -163,12 +163,19 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
               </div>
 
               {/* Items: split into dietary and general */}
-              {(() => {
-                const dietaryItems = order.items.filter(i => i.assignedStudents && i.assignedStudents.length > 0);
-                const generalItems = order.items.filter(i => !i.assignedStudents || i.assignedStudents.length === 0);
+              {order.items.length > 0 && (() => {
+                // Use Array.isArray to guard against undefined/null/non-array values
+                const isDietary = (i: PendingOrderItem) =>
+                  Array.isArray(i.assignedStudents) && i.assignedStudents.length > 0;
+                const dietaryItems = order.items.filter(isDietary);
+                // General = everything that isn't a dietary-assigned item
+                const generalItems = order.items.filter(i => !isDietary(i));
+                const hasDietary = dietaryItems.length > 0;
+
                 return (
                   <div className="flex flex-col gap-3">
-                    {dietaryItems.length > 0 && (
+                    {/* Dietary section — only shown when there are per-student assignments */}
+                    {hasDietary && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-2">
                           Dietary requirement meals
@@ -176,11 +183,13 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                         <div className="rounded-lg border border-slate-100 dark:border-[#2a2d3e] overflow-hidden">
                           <table className="w-full text-sm">
                             <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
-                              {dietaryItems.map((item) => (
-                                <tr key={item.name + "dietary"}>
+                              {dietaryItems.map((item, idx) => (
+                                <tr key={`dietary-${idx}`}>
                                   <td className="px-4 py-3">
-                                    <p className="font-medium text-slate-800 dark:text-slate-200">{item.name} × {item.quantity}</p>
-                                    {item.assignedStudents?.map((s) => (
+                                    <p className="font-medium text-slate-800 dark:text-slate-200">
+                                      {item.name} × {item.quantity}
+                                    </p>
+                                    {item.assignedStudents!.map((s) => (
                                       <p key={s.studentId} className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 pl-3">
                                         └ {s.name}
                                         {s.restrictions.length > 0 && (
@@ -196,28 +205,34 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                         </div>
                       </div>
                     )}
-                    {generalItems.length > 0 && (
-                      <div>
+
+                    {/* General section — always shown; includes all items when no dietary orders exist */}
+                    <div>
+                      {hasDietary && (
                         <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-2">
                           General meals
                         </p>
-                        <div className="rounded-lg border border-slate-100 dark:border-[#2a2d3e] overflow-hidden">
-                          <table className="w-full text-sm">
-                            <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
-                              {generalItems.map((item) => (
-                                <tr key={item.name + "general"}>
-                                  <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{item.name}</td>
-                                  <td className="px-4 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-200">{item.quantity}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                      )}
+                      <div className="rounded-lg border border-slate-100 dark:border-[#2a2d3e] overflow-hidden">
+                        <table className="w-full text-sm">
+                          <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
+                            {(hasDietary ? generalItems : order.items).map((item, idx) => (
+                              <tr key={`general-${idx}`}>
+                                <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{item.name}</td>
+                                <td className="px-4 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-200">
+                                  {item.quantity}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {hasDietary && (
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
                           Students with no dietary requirements may choose from any general meal option on the day.
                         </p>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 );
               })()}
