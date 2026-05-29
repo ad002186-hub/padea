@@ -5,6 +5,7 @@ import {
   checkExclusion,
   getAttendingStudents,
   assignRestrictedMeals,
+  mergeOrderItems,
   checkMinimumOrders,
   getTasteScores,
   getOrderHistory,
@@ -181,20 +182,22 @@ export async function GET() {
             .single();
           if (orderErr) throw new Error(`Insert order: ${orderErr.message}`);
 
-          const orderItemsToInsert = [
+          // Merge duplicates before inserting — same menu_item_id can appear in both
+          // restricted assignments and AI selections; merge into one row per item.
+          const mergedItems = mergeOrderItems([
             ...restrictedAssignments.map(a => ({
-              order_id: order.id,
               menu_item_id: a.menuItemId,
               quantity: a.quantity,
               assigned_students: a.assignedStudents,
             })),
             ...aiSelections.map(s => ({
-              order_id: order.id,
               menu_item_id: s.itemId,
               quantity: s.quantity,
-              assigned_students: null,
+              assigned_students: null as null,
             })),
-          ];
+          ]);
+
+          const orderItemsToInsert = mergedItems.map(i => ({ order_id: order.id, ...i }));
 
           if (orderItemsToInsert.length > 0) {
             const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(orderItemsToInsert);

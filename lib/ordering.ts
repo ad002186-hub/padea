@@ -510,6 +510,46 @@ ${recentNames.length > 0 ? recentNames.join(", ") : "None"}`;
   return parsed;
 }
 
+// ─── Order Item Merging ───────────────────────────────────────────────────────
+
+export interface OrderItemInput {
+  menu_item_id: string;
+  quantity: number;
+  assigned_students: { studentId: string; name: string; restrictions: string[] }[] | null;
+}
+
+/**
+ * Merges duplicate menu_item_id entries in an order:
+ * - Sums quantities for the same item
+ * - Combines assigned_students arrays (restricted + unrestricted qty on the same item)
+ * Prevents unique-key violations when a restricted student happens to be assigned
+ * the same item the AI also selected for unrestricted students.
+ */
+export function mergeOrderItems(items: OrderItemInput[]): OrderItemInput[] {
+  const map = new Map<string, OrderItemInput>();
+  for (const item of items) {
+    const existing = map.get(item.menu_item_id);
+    if (existing) {
+      existing.quantity += item.quantity;
+      if (Array.isArray(item.assigned_students) && item.assigned_students.length > 0) {
+        existing.assigned_students = [
+          ...(existing.assigned_students ?? []),
+          ...item.assigned_students,
+        ];
+      }
+    } else {
+      map.set(item.menu_item_id, {
+        menu_item_id: item.menu_item_id,
+        quantity: item.quantity,
+        assigned_students: Array.isArray(item.assigned_students) && item.assigned_students.length > 0
+          ? [...item.assigned_students]
+          : null,
+      });
+    }
+  }
+  return [...map.values()];
+}
+
 // ─── Communication ────────────────────────────────────────────────────────────
 
 export async function sendEmail({
