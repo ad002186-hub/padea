@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getCurrentWeekRange } from "@/lib/weekUtils";
 import PendingFlagsSection, { type PendingFlag } from "@/app/components/PendingFlagsSection";
 
 export const revalidate = 0;
@@ -38,44 +39,34 @@ const statCardStyles = [
     border: "dark:border-[#f59e0b]/20 border-amber-200",
     dot: "bg-[#f59e0b]",
   },
+  {
+    label: "Pending Orders",
+    sub: "Awaiting review",
+    color: "text-[#7c3aed]",
+    bg: "dark:bg-[#7c3aed]/10 bg-violet-50",
+    border: "dark:border-[#7c3aed]/20 border-violet-200",
+    dot: "bg-[#7c3aed]",
+  },
 ];
 
 async function fetchStatCounts(): Promise<number[]> {
-  const [students, sessions, caterers, flags] = await Promise.all([
-    supabaseAdmin
-      .from("students")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true),
-    supabaseAdmin
-      .from("sessions")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true),
-    supabaseAdmin
-      .from("caterers")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true),
-    supabaseAdmin
-      .from("flags")
-      .select("*", { count: "exact", head: true })
-      .eq("is_resolved", false),
+  const [students, sessions, caterers, flags, pendingOrders] = await Promise.all([
+    supabaseAdmin.from("students").select("*", { count: "exact", head: true }).eq("is_active", true),
+    supabaseAdmin.from("sessions").select("*", { count: "exact", head: true }).eq("is_active", true),
+    supabaseAdmin.from("caterers").select("*", { count: "exact", head: true }).eq("is_active", true),
+    supabaseAdmin.from("flags").select("*", { count: "exact", head: true }).eq("is_resolved", false),
+    supabaseAdmin.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
   ]);
-
   return [
     students.count ?? 0,
     sessions.count ?? 0,
     caterers.count ?? 0,
     flags.count ?? 0,
+    pendingOrders.count ?? 0,
   ];
 }
 
 
-const weekOrders = [
-  { day: "Monday",    caterer: "Sunrise Catering", meals: 142, status: "Confirmed" },
-  { day: "Tuesday",   caterer: "Sunrise Catering", meals: 138, status: "Confirmed" },
-  { day: "Wednesday", caterer: "Green Leaf Co.",   meals: 155, status: "Pending"   },
-  { day: "Thursday",  caterer: "Sunrise Catering", meals: 149, status: "Confirmed" },
-  { day: "Friday",    caterer: "Green Leaf Co.",   meals: 130, status: "Pending"   },
-];
 
 const recentFeedback = [
   {
@@ -101,15 +92,20 @@ const recentFeedback = [
   },
 ];
 
+const STATUS_BADGE: Record<string, string> = {
+  pending:   "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20",
+  approved:  "bg-[#7c3aed]/10 text-[#7c3aed] border-[#7c3aed]/20",
+  sent:      "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
+  cancelled: "bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-[#2a2d3e]",
+};
+
 export default async function DashboardPage() {
   noStore();
-  const [counts, { data: flagsData }] = await Promise.all([
+  const { monday, friday } = getCurrentWeekRange();
+  const [counts, { data: flagsData }, { data: weekOrdersData }] = await Promise.all([
     fetchStatCounts(),
-    supabaseAdmin
-      .from("flags")
-      .select("id, title, details, type, created_at")
-      .eq("is_resolved", false)
-      .order("created_at", { ascending: false }),
+    supabaseAdmin.from("flags").select("id, title, details, type, created_at").eq("is_resolved", false).order("created_at", { ascending: false }),
+    supabaseAdmin.from("orders").select("id, session_date, meal_count, status, sessions(day_of_week, schools(name)), caterers(name)").gte("session_date", monday).lte("session_date", friday).order("session_date", { ascending: true }),
   ]);
   const statCards = statCardStyles.map((style, i) => ({ ...style, value: counts[i] }));
   const pendingFlags: PendingFlag[] = (flagsData ?? []).map((f: any) => ({
@@ -118,6 +114,14 @@ export default async function DashboardPage() {
     details: f.details as string | null,
     type: f.type as string,
     created_at: f.created_at as string,
+  }));
+  const weekOrders = (weekOrdersData ?? []).map((o: any) => ({
+    id: o.id as string,
+    day: (o.sessions as any)?.day_of_week ?? "?",
+    school: (o.sessions as any)?.schools?.name ?? "Unknown",
+    caterer: (o.caterers as any)?.name ?? "Unknown",
+    meals: o.meal_count as number,
+    status: o.status as string,
   }));
 
   return (
@@ -133,7 +137,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
         {statCards.map((card) => (
           <div
             key={card.label}
@@ -179,58 +183,44 @@ export default async function DashboardPage() {
 
         {/* This Week's Orders */}
         <section>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-4">
-            This Week's Orders
-          </h2>
-          <div className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-[#2a2d3e] bg-slate-50 dark:bg-white/[0.03]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                    Day
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                    Caterer
-                  </th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                    Meals
-                  </th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
-                {weekOrders.map((order) => (
-                  <tr
-                    key={order.day}
-                    className="hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors"
-                  >
-                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
-                      {order.day}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                      {order.caterer}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-800 dark:text-slate-200">
-                      {order.meals}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {order.status === "Confirmed" ? (
-                        <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
-                          Confirmed
-                        </span>
-                      ) : (
-                        <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
-                          Pending
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">This Week's Orders</h2>
+            <Link href="/orders" className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">View all →</Link>
           </div>
+          {weekOrders.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-10 flex items-center justify-center">
+              <p className="text-sm text-slate-400 dark:text-slate-500">No orders this week yet.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-[#2a2d3e] bg-slate-50 dark:bg-white/[0.03]">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">School</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Day</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Caterer</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Meals</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
+                  {weekOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors">
+                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{order.school}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{order.day}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{order.caterer}</td>
+                      <td className="px-4 py-3 text-right text-slate-800 dark:text-slate-200">{order.meals}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border capitalize ${STATUS_BADGE[order.status] ?? STATUS_BADGE.pending}`}>
+                          {order.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
 

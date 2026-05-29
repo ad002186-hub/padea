@@ -1,0 +1,109 @@
+import { supabaseAdmin } from "@/lib/supabase";
+import { orderEmail } from "@/lib/email-templates";
+import { sendEmail, getNextWeekDate, getArrivalTime } from "@/lib/ordering";
+
+export const dynamic = "force-dynamic";
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function formatDisplayDate(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${d}, ${y}`;
+}
+
+export async function GET() {
+  const summary = { emailsSent: 0, ordersUpdated: 0, errors: [] as string[] };
+
+  try {
+    const nextMonday = getNextWeekDate("Monday");
+    const nextFriday = getNextWeekDate("Friday");
+
+    // Query all pending + approved orders for next week
+    const { data: orders, error } = await supabaseAdmin
+      .from("orders")
+      .select(`
+        id, session_date, meal_count, email_to, email_cc, caterer_id,
+        sessions(id, day_of_week, dinner_time, manager_name, manager_mobile, school_id, schools(name)),
+        caterers(id, name, contact_name, contact_email, no_cc, cc_email),
+        order_items(id, quantity, menu_item_id, menu_items(id, name))
+      `)
+      .in("status", ["pending", "approved"])
+      .gte("session_date", nextMonday)
+      .lte("session_date", nextFriday);
+
+    if (error) throw new Error(`Query orders: ${error.message}`);
+
+    // Group by caterer_id
+    const catererGroups = new Map<string, typeof orders>();
+    for (const order of orders ?? []) {
+      const cid = order.caterer_id;
+      if (!catererGroups.has(cid)) catererGroups.set(cid, []);
+      catererGroups.get(cid)!.push(order);
+    }
+
+    // Send one email per caterer covering all their sessions
+    for (const [, group] of catererGroups) {
+      const firstOrder = group[0];
+      const caterer = firstOrder.caterers as any;
+      if (!caterer?.contact_email) {
+        summary.errors.push(`Caterer ${firstOrder.caterer_id}: no contact_email — skipped`);
+        continue;
+      }
+
+      try {
+        const emailSessions = group.map((order: any) => {
+          const session = order.sessions as any;
+          return {
+            schoolName: session?.schools?.name ?? "Unknown",
+            sessionDate: formatDisplayDate(order.session_date),
+            arrivalTime: getArrivalTime(session?.dinner_time),
+            managerName: session?.manager_name ?? null,
+            managerMobile: session?.manager_mobile ?? null,
+            items: (order.order_items ?? []).map((oi: any) => ({
+              name: oi.menu_items?.name ?? "Unknown",
+              quantity: oi.quantity as number,
+            })),
+            totalMeals: order.meal_count as number,
+          };
+        });
+
+        const html = orderEmail({
+          catererName: caterer.name,
+          contactName: caterer.contact_name ?? caterer.name,
+          sessions: emailSessions,
+        });
+
+        const cc = !caterer.no_cc && caterer.cc_email ? caterer.cc_email : undefined;
+        const schoolNames = [...new Set(group.map((o: any) => o.sessions?.schools?.name ?? "School"))];
+
+        await sendEmail({
+          to: caterer.contact_email,
+          cc,
+          subject: `Padea Catering Order — ${schoolNames.join(", ")} — Week of ${nextMonday}`,
+          html,
+        });
+
+        // Update all orders in this group to 'sent'
+        const sentAt = new Date().toISOString();
+        const orderIds = group.map((o: any) => o.id);
+        await supabaseAdmin
+          .from("orders")
+          .update({
+            status: "sent",
+            email_sent_at: sentAt,
+            email_to: caterer.contact_email,
+            email_cc: cc ?? null,
+          })
+          .in("id", orderIds);
+
+        summary.emailsSent++;
+        summary.ordersUpdated += group.length;
+      } catch (err) {
+        summary.errors.push(`Caterer ${caterer.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  } catch (err) {
+    summary.errors.push(`Fatal: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  return Response.json(summary);
+}

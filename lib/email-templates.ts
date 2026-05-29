@@ -168,73 +168,130 @@ export function flagEmail({ coordinatorName, flagType, title, details, catererSc
         ${catererScores.map((s, i) => `
           <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">
             <td style="padding:8px 12px;font-size:13px;color:#475569;font-family:Arial,sans-serif;">${new Date(s.submitted_at).toLocaleDateString()}</td>
-            ${scoreCell(s.food_quality)}
-            ${scoreCell(s.delivery_timing)}
-            ${scoreCell(s.presentation)}
-            ${scoreCell(s.weightedScore)}
+            ${scoreCell(s.food_quality)}${scoreCell(s.delivery_timing)}${scoreCell(s.presentation)}${scoreCell(s.weightedScore)}
           </tr>`).join("")}
       </tbody>
     </table>` : "";
 
   const replacementsTable = replacementCaterers && replacementCaterers.length > 0 ? `
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#7c3aed;border-radius:8px;margin-top:20px;">
-      <tr>
-        <td style="padding:16px 20px;">
-          <p style="margin:0 0 10px;color:#c4b5fd;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;font-family:Arial,sans-serif;font-weight:600;">Potential Replacement Caterers</p>
-          <table width="100%" cellpadding="0" cellspacing="0">
-            ${replacementCaterers.map(c => `
-              <tr>
-                <td style="padding:4px 0;color:#ffffff;font-size:13px;font-family:Arial,sans-serif;font-weight:500;">${c.name}</td>
-                ${c.region ? `<td style="padding:4px 0;color:#c4b5fd;font-size:12px;font-family:Arial,sans-serif;">${c.region}</td>` : "<td></td>"}
-                <td style="padding:4px 0;text-align:right;">
-                  <span style="background:${c.currentlyServes ? "#10b981" : "#475569"};color:#ffffff;font-size:11px;padding:2px 8px;border-radius:99px;font-family:Arial,sans-serif;">
-                    ${c.currentlyServes ? "Currently serves" : "Not current"}
-                  </span>
-                </td>
-              </tr>`).join("")}
-          </table>
-        </td>
-      </tr>
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0 0 10px;color:#c4b5fd;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;font-family:Arial,sans-serif;font-weight:600;">Potential Replacement Caterers</p>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          ${replacementCaterers.map(c => `
+            <tr>
+              <td style="padding:4px 0;color:#ffffff;font-size:13px;font-family:Arial,sans-serif;font-weight:500;">${c.name}</td>
+              ${c.region ? `<td style="color:#c4b5fd;font-size:12px;font-family:Arial,sans-serif;">${c.region}</td>` : "<td></td>"}
+              <td style="text-align:right;"><span style="background:${c.currentlyServes ? "#10b981" : "#475569"};color:#fff;font-size:11px;padding:2px 8px;border-radius:99px;font-family:Arial,sans-serif;">${c.currentlyServes ? "Currently serves" : "Not current"}</span></td>
+            </tr>`).join("")}
+        </table>
+      </td></tr>
     </table>` : "";
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  ${header("Action Required")}
+  <table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;margin:24px auto;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <tr><td style="padding:32px 40px;">
+      <p style="margin:0 0 20px;font-size:15px;color:#0f172a;font-family:Arial,sans-serif;">Hi ${coordinatorName},</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;margin-bottom:20px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 6px;color:#b45309;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;font-family:Arial,sans-serif;font-weight:700;">⚠ ${typeLabel} Flag</p>
+          <p style="margin:0 0 8px;font-size:16px;color:#92400e;font-family:Arial,sans-serif;font-weight:700;">Action required: ${title}</p>
+          <p style="margin:0;font-size:13px;color:#78350f;font-family:Arial,sans-serif;line-height:1.6;">${details}</p>
+        </td></tr>
+      </table>
+      ${scoresTable}${replacementsTable}
+      <table cellpadding="0" cellspacing="0" style="margin:24px 0;">
+        <tr><td style="background:#7c3aed;border-radius:8px;">
+          <a href="https://padea.vercel.app/flags" style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;font-family:Arial,sans-serif;">Review in Dashboard →</a>
+        </td></tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#94a3b8;font-family:Arial,sans-serif;">If no action is taken by Thursday 12pm, the order will proceed as normal.</p>
+    </td></tr>
+  </table>
+  ${footer("Padea Catering System · <a href='https://padea.vercel.app/flags' style='color:#7c3aed;'>View all flags</a>")}
+</body>
+</html>`;
+}
+
+
+// ─── Pending Orders Review Email ─────────────────────────────────────────────
+
+export interface PendingOrdersEmailParams {
+  coordinatorName: string;
+  weekDate: string;
+  orders: {
+    schoolName: string;
+    day: string;
+    catererName: string;
+    mealCount: number;
+    items: { name: string; quantity: number }[];
+  }[];
+  approveUrl: string;
+}
+
+export function pendingOrdersEmail({ coordinatorName, weekDate, orders, approveUrl }: PendingOrdersEmailParams): string {
+  const orderRows = orders.map((o, i) => `
+    <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};">
+      <td style="padding:10px 16px;font-size:14px;color:#1e293b;font-family:Arial,sans-serif;font-weight:500;">${o.schoolName}</td>
+      <td style="padding:10px 16px;font-size:14px;color:#475569;font-family:Arial,sans-serif;">${o.day}</td>
+      <td style="padding:10px 16px;font-size:14px;color:#475569;font-family:Arial,sans-serif;">${o.catererName}</td>
+      <td style="padding:10px 16px;font-size:14px;color:#475569;font-family:Arial,sans-serif;text-align:right;font-weight:600;">${o.mealCount}</td>
+    </tr>`).join("");
+
+  const totalMeals = orders.reduce((s, o) => s + o.mealCount, 0);
 
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f1f5f9;">
-  ${header("Action Required")}
+  ${header("Review Required")}
   <table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;margin:24px auto;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-    <tr>
-      <td style="padding:32px 40px;">
-        <p style="margin:0 0 20px;font-size:15px;color:#0f172a;font-family:Arial,sans-serif;">Hi ${coordinatorName},</p>
+    <tr><td style="padding:32px 40px;">
+      <p style="margin:0 0 8px;font-size:15px;color:#0f172a;font-family:Arial,sans-serif;">Hi ${coordinatorName},</p>
+      <p style="margin:0 0 24px;font-size:14px;color:#475569;font-family:Arial,sans-serif;line-height:1.6;">
+        The automated system has generated meal orders for the week of <strong>${weekDate}</strong>.
+        Please review and approve by <strong>Thursday 12pm</strong>.
+      </p>
 
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;margin-bottom:20px;">
-          <tr>
-            <td style="padding:16px 20px;">
-              <p style="margin:0 0 6px;color:#b45309;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;font-family:Arial,sans-serif;font-weight:700;">⚠ ${typeLabel} Flag</p>
-              <p style="margin:0 0 8px;font-size:16px;color:#92400e;font-family:Arial,sans-serif;font-weight:700;">Action required: ${title}</p>
-              <p style="margin:0;font-size:13px;color:#78350f;font-family:Arial,sans-serif;line-height:1.6;">${details}</p>
-            </td>
+      <h3 style="margin:0 0 12px;font-size:14px;color:#0f172a;font-family:Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Order Summary</h3>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="text-align:left;padding:10px 16px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;font-family:Arial,sans-serif;font-weight:600;">School</th>
+            <th style="text-align:left;padding:10px 16px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;font-family:Arial,sans-serif;font-weight:600;">Day</th>
+            <th style="text-align:left;padding:10px 16px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;font-family:Arial,sans-serif;font-weight:600;">Caterer</th>
+            <th style="text-align:right;padding:10px 16px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;font-family:Arial,sans-serif;font-weight:600;">Meals</th>
           </tr>
-        </table>
-
-        ${scoresTable}
-        ${replacementsTable}
-
-        <table cellpadding="0" cellspacing="0" style="margin:24px 0;">
-          <tr>
-            <td style="background:#7c3aed;border-radius:8px;">
-              <a href="https://padea.vercel.app/flags" style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;font-family:Arial,sans-serif;">Review in Dashboard →</a>
-            </td>
+        </thead>
+        <tbody>
+          ${orderRows}
+          <tr style="background:#f1f5f9;border-top:2px solid #e2e8f0;">
+            <td colspan="3" style="padding:10px 16px;font-size:14px;color:#0f172a;font-family:Arial,sans-serif;font-weight:700;">Total</td>
+            <td style="padding:10px 16px;font-size:14px;color:#7c3aed;font-family:Arial,sans-serif;font-weight:700;text-align:right;">${totalMeals} meals</td>
           </tr>
-        </table>
+        </tbody>
+      </table>
 
-        <p style="margin:0;font-size:13px;color:#94a3b8;font-family:Arial,sans-serif;">
-          If no action is taken by Thursday 12pm, the order will proceed as normal.
-        </p>
-      </td>
-    </tr>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;margin-bottom:24px;">
+        <tr><td style="padding:14px 18px;">
+          <p style="margin:0;font-size:13px;color:#92400e;font-family:Arial,sans-serif;font-weight:500;">
+            ⚠ If orders are not approved by Thursday 12pm, they will be sent to caterers automatically.
+          </p>
+        </td></tr>
+      </table>
+
+      <table cellpadding="0" cellspacing="0">
+        <tr><td style="background:#7c3aed;border-radius:8px;">
+          <a href="${approveUrl}" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;font-family:Arial,sans-serif;">Review orders →</a>
+        </td></tr>
+      </table>
+    </td></tr>
   </table>
-  ${footer("Padea Catering System · <a href='https://padea.vercel.app/flags' style='color:#7c3aed;'>View all flags</a>")}
+  ${footer("Padea Catering System · <a href='${approveUrl}' style='color:#7c3aed;'>Review pending orders</a>")}
 </body>
 </html>`;
 }
