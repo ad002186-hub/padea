@@ -391,11 +391,15 @@ function fallbackMealSelection(
   itemCount: number
 ): { itemId: string; quantity: number }[] {
   if (availableItems.length === 0) throw new Error("No menu items available for fallback selection");
+  if (mealCount === 0) return [];
+  // Never select more items than there are meals — prevents zero-quantity rows
+  const effectiveCount = Math.min(itemCount, availableItems.length, mealCount);
   const ranked = [...availableItems]
     .sort((a, b) => (tasteScores.get(b.id) ?? 0.5) - (tasteScores.get(a.id) ?? 0.5))
-    .slice(0, Math.min(itemCount, availableItems.length));
+    .slice(0, effectiveCount);
   const base = Math.floor(mealCount / ranked.length);
   const remainder = mealCount % ranked.length;
+  // remainder goes to the first items so leading items get the extra meal, never 0
   return ranked.map((item, i) => ({
     itemId: item.id,
     quantity: base + (i < remainder ? 1 : 0),
@@ -413,6 +417,11 @@ export async function selectMealsWithAI(params: {
   catererName: string;
 }): Promise<{ itemId: string; quantity: number }[]> {
   const { menuItems, tasteScores, orderHistory, mealCount, itemCount, schoolName, sessionDate, catererName } = params;
+
+  if (mealCount === 0) return [];
+
+  // Never ask for more items than there are meals or available menu items
+  const effectiveItemCount = Math.min(itemCount, mealCount, menuItems.length || 1);
 
   const recentNames = menuItems.filter((m) => orderHistory.has(m.id)).map((m) => m.name);
 
@@ -435,7 +444,7 @@ export async function selectMealsWithAI(params: {
   const prompt = `You are selecting meals for ${mealCount} unrestricted students at ${schoolName} on ${sessionDate}.
 Caterer: ${catererName}
 Total meals needed: ${mealCount}
-Select exactly ${itemCount} menu items. Return ONLY a JSON array: [{"itemId":"uuid","quantity":number}]
+Select exactly ${effectiveItemCount} menu items. Return ONLY a JSON array: [{"itemId":"uuid","quantity":number}]
 Quantities must sum to exactly ${mealCount}.
 
 Menu items available:
@@ -500,7 +509,7 @@ ${recentNames.length > 0 ? recentNames.join(", ") : "None"}`;
       `[selectMealsWithAI] AI selection failed for ${schoolName} on ${sessionDate} — falling back to taste-score ranking.`,
       err instanceof Error ? err.message : String(err)
     );
-    parsed = fallbackMealSelection(menuItems, tasteScores, mealCount, itemCount);
+    parsed = fallbackMealSelection(menuItems, tasteScores, mealCount, effectiveItemCount);
     console.error(
       `[selectMealsWithAI] Fallback selected ${parsed.length} item(s):`,
       parsed.map((i) => `${i.itemId} x${i.quantity}`).join(", ")
