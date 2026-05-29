@@ -1,3 +1,6 @@
+// SQL (run once in Supabase before deploying):
+// ALTER TABLE order_items ADD COLUMN assigned_students JSONB;
+
 import Anthropic from "@anthropic-ai/sdk";
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -49,6 +52,8 @@ export interface MenuItem {
   contains_fish: boolean;
   contains_shellfish: boolean;
   contains_seafood: boolean;
+  dietary_flags_known: boolean;
+  has_dietary_conflict: boolean;
 }
 
 export interface RestrictionSet {
@@ -275,6 +280,95 @@ export function isItemSafe(item: MenuItem, r: RestrictionSet): boolean {
   return true;
 }
 
+/** Per-student safety check. Items with unknown flags or dietary conflicts are always unsafe. */
+export function isItemSafeForStudent(item: MenuItem, restrictions: string[]): boolean {
+  if (!item.dietary_flags_known) return false;
+  if (item.has_dietary_conflict) return false;
+  for (const r of restrictions) {
+    switch (r) {
+      case "Halal":
+      case "No Pork":
+        if (item.contains_pork) return false;
+        break;
+      case "No Beef":
+        if (item.contains_beef) return false;
+        break;
+      case "No Red Meat":
+        if (item.contains_beef || item.contains_lamb) return false;
+        break;
+      case "No Fish":
+        if (item.contains_fish) return false;
+        break;
+      case "No Shellfish":
+        if (item.contains_shellfish) return false;
+        break;
+      case "No Seafood":
+        if (item.contains_seafood || item.contains_fish || item.contains_shellfish) return false;
+        break;
+      case "Gluten Free":
+        if (!item.is_gluten_free) return false;
+        break;
+      case "Dairy Free":
+        if (!item.is_dairy_free) return false;
+        break;
+      case "Nut Free":
+        if (!item.is_nut_free) return false;
+        break;
+      case "Vegetarian":
+        if (!item.is_vegetarian) return false;
+        break;
+    }
+  }
+  return true;
+}
+
+export interface RestrictedAssignment {
+  menuItemId: string;
+  quantity: number;
+  assignedStudents: { studentId: string; name: string; restrictions: string[] }[];
+}
+
+export interface RestrictedMealResult {
+  assignments: RestrictedAssignment[];
+  skippedStudents: AttendingStudent[];
+}
+
+/** Assigns each restricted student to their highest-scored safe menu item. */
+export function assignRestrictedMeals(
+  restrictedStudents: AttendingStudent[],
+  menuItems: MenuItem[],
+  tasteScores: Map<string, number>
+): RestrictedMealResult {
+  const assignmentMap = new Map<string, RestrictedAssignment>();
+  const skippedStudents: AttendingStudent[] = [];
+
+  for (const student of restrictedStudents) {
+    const safeItems = menuItems.filter(item => isItemSafeForStudent(item, student.dietaryRestrictions));
+    if (safeItems.length === 0) {
+      console.error(
+        `[assignRestrictedMeals] No safe item for ${student.name} (${student.dietaryRestrictions.join(", ")})`
+      );
+      skippedStudents.push(student);
+      continue;
+    }
+    const best = safeItems.reduce((a, b) =>
+      (tasteScores.get(a.id) ?? 0.5) >= (tasteScores.get(b.id) ?? 0.5) ? a : b
+    );
+    if (!assignmentMap.has(best.id)) {
+      assignmentMap.set(best.id, { menuItemId: best.id, quantity: 0, assignedStudents: [] });
+    }
+    const assignment = assignmentMap.get(best.id)!;
+    assignment.quantity += 1;
+    assignment.assignedStudents.push({
+      studentId: student.studentId,
+      name: student.name,
+      restrictions: student.dietaryRestrictions,
+    });
+  }
+
+  return { assignments: [...assignmentMap.values()], skippedStudents };
+}
+
 export function checkMinimumOrders(
   caterer: SessionRow["caterers"],
   totalMeals: number
@@ -291,15 +385,15 @@ export function checkMinimumOrders(
 }
 
 function fallbackMealSelection(
-  safeItems: MenuItem[],
+  availableItems: MenuItem[],
   tasteScores: Map<string, number>,
   mealCount: number,
   itemCount: number
 ): { itemId: string; quantity: number }[] {
-  if (safeItems.length === 0) throw new Error("No safe menu items available for fallback selection");
-  const ranked = [...safeItems]
+  if (availableItems.length === 0) throw new Error("No menu items available for fallback selection");
+  const ranked = [...availableItems]
     .sort((a, b) => (tasteScores.get(b.id) ?? 0.5) - (tasteScores.get(a.id) ?? 0.5))
-    .slice(0, Math.min(itemCount, safeItems.length));
+    .slice(0, Math.min(itemCount, availableItems.length));
   const base = Math.floor(mealCount / ranked.length);
   const remainder = mealCount % ranked.length;
   return ranked.map((item, i) => ({
@@ -309,22 +403,20 @@ function fallbackMealSelection(
 }
 
 export async function selectMealsWithAI(params: {
-  menuItems: MenuItem[];
-  restrictions: RestrictionSet;
+  menuItems: MenuItem[]; // pre-filtered by caller: dietary_flags_known=true, is_active=true
   tasteScores: Map<string, number>;
   orderHistory: Set<string>;
-  mealCount: number;
+  mealCount: number; // unrestricted student count
   itemCount: number;
   schoolName: string;
   sessionDate: string;
   catererName: string;
 }): Promise<{ itemId: string; quantity: number }[]> {
-  const { menuItems, restrictions, tasteScores, orderHistory, mealCount, itemCount, schoolName, sessionDate, catererName } = params;
+  const { menuItems, tasteScores, orderHistory, mealCount, itemCount, schoolName, sessionDate, catererName } = params;
 
-  const safeItems = menuItems.filter((m) => isItemSafe(m, restrictions));
   const recentNames = menuItems.filter((m) => orderHistory.has(m.id)).map((m) => m.name);
 
-  const menuList = safeItems.map((m) => {
+  const menuList = menuItems.map((m) => {
     const score = tasteScores.get(m.id) ?? 0.5;
     const tags: string[] = [];
     if (m.is_gluten_free) tags.push("GF");
@@ -340,22 +432,21 @@ export async function selectMealsWithAI(params: {
     return `- ${m.id}: ${m.name} | taste:${score.toFixed(2)} | ${tags.join(", ") || "no tags"}`;
   }).join("\n");
 
-  const prompt = `You are selecting meals for ${schoolName} on ${sessionDate}.
+  const prompt = `You are selecting meals for ${mealCount} unrestricted students at ${schoolName} on ${sessionDate}.
 Caterer: ${catererName}
 Total meals needed: ${mealCount}
-Select exactly ${itemCount} menu items. Return ONLY a JSON array like: [{"itemId":"uuid","quantity":number}]
+Select exactly ${itemCount} menu items. Return ONLY a JSON array: [{"itemId":"uuid","quantity":number}]
 Quantities must sum to exactly ${mealCount}.
 
-Safe menu items (dietary restrictions already filtered):
-${menuList || "No safe items found."}
+Menu items available:
+${menuList || "No items found."}
 
-Dietary restrictions this session (already applied to menu above):
-${restrictions.allRestrictions.length > 0 ? restrictions.allRestrictions.join(", ") : "None"}
+Prefer items not ordered recently but DO repeat them if needed — never refuse to return a valid JSON array.
+Maximise taste scores. Distribute quantities reasonably.
 
-Do NOT include these recently ordered items (avoid repetition):
-${recentNames.length > 0 ? recentNames.join(", ") : "None"}
+Recently ordered (avoid if possible):
+${recentNames.length > 0 ? recentNames.join(", ") : "None"}`;
 
-Maximise taste scores. Distribute quantities reasonably (no item should have 0 or all meals).`;
 
   console.error(
     `[selectMealsWithAI] Prompt for ${schoolName} on ${sessionDate} (${catererName}):\n${prompt}`
@@ -409,7 +500,7 @@ Maximise taste scores. Distribute quantities reasonably (no item should have 0 o
       `[selectMealsWithAI] AI selection failed for ${schoolName} on ${sessionDate} — falling back to taste-score ranking.`,
       err instanceof Error ? err.message : String(err)
     );
-    parsed = fallbackMealSelection(safeItems, tasteScores, mealCount, itemCount);
+    parsed = fallbackMealSelection(menuItems, tasteScores, mealCount, itemCount);
     console.error(
       `[selectMealsWithAI] Fallback selected ${parsed.length} item(s):`,
       parsed.map((i) => `${i.itemId} x${i.quantity}`).join(", ")

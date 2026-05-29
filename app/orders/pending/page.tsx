@@ -14,7 +14,7 @@ export default async function PendingOrdersPage() {
       id, session_date, meal_count, status,
       sessions(day_of_week, schools(name)),
       caterers(name),
-      order_items(id, quantity, menu_items(name))
+      order_items(id, quantity, assigned_students, menu_items(name))
     `)
     .in("status", ["pending", "approved"])
     .order("session_date", { ascending: true });
@@ -30,6 +30,9 @@ export default async function PendingOrdersPage() {
     items: ((row.order_items ?? []) as any[]).map((oi) => ({
       name: oi.menu_items?.name ?? "Unknown",
       quantity: oi.quantity as number,
+      assignedStudents: (oi.assigned_students ?? null) as
+        | { studentId: string; name: string; restrictions: string[] }[]
+        | null,
     })),
   }));
 

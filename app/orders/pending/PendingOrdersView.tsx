@@ -3,6 +3,12 @@
 import { useState } from "react";
 import ConfirmModal from "@/app/components/ui/ConfirmModal";
 
+export type PendingOrderItem = {
+  name: string;
+  quantity: number;
+  assignedStudents?: { studentId: string; name: string; restrictions: string[] }[] | null;
+};
+
 export type PendingOrder = {
   id: string;
   sessionDate: string;
@@ -11,7 +17,7 @@ export type PendingOrder = {
   catererName: string;
   mealCount: number;
   status: string;
-  items: { name: string; quantity: number }[];
+  items: PendingOrderItem[];
 };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -156,25 +162,65 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                 )}
               </div>
 
-              {/* Items list */}
-              <div className="rounded-lg border border-slate-100 dark:border-[#2a2d3e] overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-white/[0.03]">
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Item</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
-                    {order.items.map((item) => (
-                      <tr key={item.name}>
-                        <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{item.name}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-200">{item.quantity}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {/* Items: split into dietary and general */}
+              {(() => {
+                const dietaryItems = order.items.filter(i => i.assignedStudents && i.assignedStudents.length > 0);
+                const generalItems = order.items.filter(i => !i.assignedStudents || i.assignedStudents.length === 0);
+                return (
+                  <div className="flex flex-col gap-3">
+                    {dietaryItems.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                          Dietary requirement meals
+                        </p>
+                        <div className="rounded-lg border border-slate-100 dark:border-[#2a2d3e] overflow-hidden">
+                          <table className="w-full text-sm">
+                            <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
+                              {dietaryItems.map((item) => (
+                                <tr key={item.name + "dietary"}>
+                                  <td className="px-4 py-3">
+                                    <p className="font-medium text-slate-800 dark:text-slate-200">{item.name} × {item.quantity}</p>
+                                    {item.assignedStudents?.map((s) => (
+                                      <p key={s.studentId} className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 pl-3">
+                                        └ {s.name}
+                                        {s.restrictions.length > 0 && (
+                                          <span className="ml-1 text-[#f59e0b]">({s.restrictions.join(", ")})</span>
+                                        )}
+                                      </p>
+                                    ))}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {generalItems.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                          General meals
+                        </p>
+                        <div className="rounded-lg border border-slate-100 dark:border-[#2a2d3e] overflow-hidden">
+                          <table className="w-full text-sm">
+                            <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
+                              {generalItems.map((item) => (
+                                <tr key={item.name + "general"}>
+                                  <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{item.name}</td>
+                                  <td className="px-4 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-200">{item.quantity}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+                          Students with no dietary requirements may choose from any general meal option on the day.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>

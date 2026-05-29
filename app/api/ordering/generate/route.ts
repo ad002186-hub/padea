@@ -4,7 +4,7 @@ import {
   getNextWeekDate,
   checkExclusion,
   getAttendingStudents,
-  buildRestrictionSet,
+  assignRestrictedMeals,
   checkMinimumOrders,
   getTasteScores,
   getOrderHistory,
@@ -94,10 +94,9 @@ export async function GET() {
       if (skippedCaterers.has(catererId)) continue;
       const { data } = await supabaseAdmin
         .from("menu_items")
-        .select("id, name, is_gluten_free, is_dairy_free, is_nut_free, is_vegetarian, contains_pork, contains_beef, contains_lamb, contains_fish, contains_shellfish, contains_seafood")
+        .select("id, name, is_gluten_free, is_dairy_free, is_nut_free, is_vegetarian, contains_pork, contains_beef, contains_lamb, contains_fish, contains_shellfish, contains_seafood, dietary_flags_known, has_dietary_conflict")
         .eq("caterer_id", catererId)
-        .eq("is_active", true)
-        .eq("dietary_flags_known", true);
+        .eq("is_active", true);
       menuItemsByCaterer.set(catererId, (data ?? []) as MenuItem[]);
     }
 
@@ -116,26 +115,56 @@ export async function GET() {
 
       for (const ps of group) {
         try {
-          const restrictions = buildRestrictionSet(ps.students);
           const tasteScores = await getTasteScores(menuItems.map(m => m.id), ps.session.school_id);
           const orderHistory = await getOrderHistory(ps.session.id);
 
-          const selectedItems = await selectMealsWithAI({
-            menuItems,
-            restrictions,
-            tasteScores,
-            orderHistory,
-            mealCount: ps.mealCount,
-            itemCount,
-            schoolName: ps.session.schools?.name ?? "School",
-            sessionDate: ps.sessionDate,
-            catererName: caterer?.name ?? "Caterer",
-          });
+          // ── Phase 1: Assign restricted students individually ─────────────
+          const restricted = ps.students.filter(s => s.dietaryRestrictions.length > 0);
+          const unrestricted = ps.students.filter(s => s.dietaryRestrictions.length === 0);
 
+          const { assignments: restrictedAssignments, skippedStudents } =
+            assignRestrictedMeals(restricted, menuItems, tasteScores);
+
+          for (const s of skippedStudents) {
+            try {
+              await createFlag({
+                type: "dietary_restriction",
+                sessionId: ps.session.id,
+                catererId,
+                title: `No safe meal found for ${s.name}`,
+                details: `Restrictions: ${s.dietaryRestrictions.join(", ")}. Session: ${ps.session.schools?.name ?? "Unknown"} ${ps.sessionDate}.`,
+              });
+              summary.flagsCreated++;
+            } catch (flagErr) {
+              summary.errors.push(`Flag for ${s.name}: ${flagErr instanceof Error ? flagErr.message : String(flagErr)}`);
+            }
+          }
+
+          // ── Phase 2: AI selection for unrestricted students ──────────────
+          const unrestrictedCount = unrestricted.length;
+          const restrictedDistinctItems = new Set(restrictedAssignments.map(a => a.menuItemId));
+          const remainingItemCount = Math.max(1, itemCount - restrictedDistinctItems.size);
+
+          let aiSelections: { itemId: string; quantity: number }[] = [];
+          if (unrestrictedCount > 0) {
+            const aiMenuItems = menuItems.filter(m => m.dietary_flags_known !== false);
+            aiSelections = await selectMealsWithAI({
+              menuItems: aiMenuItems,
+              tasteScores,
+              orderHistory,
+              mealCount: unrestrictedCount,
+              itemCount: Math.min(remainingItemCount, aiMenuItems.length || 1),
+              schoolName: ps.session.schools?.name ?? "School",
+              sessionDate: ps.sessionDate,
+              catererName: caterer?.name ?? "Caterer",
+            });
+          }
+
+          // ── Insert order + order_items ────────────────────────────────────
+          const actualMealCount = restrictedAssignments.reduce((s, a) => s + a.quantity, 0) + unrestrictedCount;
           const emailTo = caterer?.contact_email ?? "";
           const emailCc = !caterer?.no_cc && caterer?.cc_email ? caterer.cc_email : null;
 
-          // Insert order with status='pending'
           const { data: order, error: orderErr } = await supabaseAdmin
             .from("orders")
             .insert({
@@ -143,7 +172,7 @@ export async function GET() {
               caterer_id: catererId,
               order_date: new Date().toISOString().split("T")[0],
               session_date: ps.sessionDate,
-              meal_count: ps.mealCount,
+              meal_count: actualMealCount,
               email_to: emailTo,
               email_cc: emailCc,
               status: "pending",
@@ -152,10 +181,25 @@ export async function GET() {
             .single();
           if (orderErr) throw new Error(`Insert order: ${orderErr.message}`);
 
-          const { error: itemsErr } = await supabaseAdmin
-            .from("order_items")
-            .insert(selectedItems.map(i => ({ order_id: order.id, menu_item_id: i.itemId, quantity: i.quantity })));
-          if (itemsErr) throw new Error(`Insert order_items: ${itemsErr.message}`);
+          const orderItemsToInsert = [
+            ...restrictedAssignments.map(a => ({
+              order_id: order.id,
+              menu_item_id: a.menuItemId,
+              quantity: a.quantity,
+              assigned_students: a.assignedStudents,
+            })),
+            ...aiSelections.map(s => ({
+              order_id: order.id,
+              menu_item_id: s.itemId,
+              quantity: s.quantity,
+              assigned_students: null,
+            })),
+          ];
+
+          if (orderItemsToInsert.length > 0) {
+            const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(orderItemsToInsert);
+            if (itemsErr) throw new Error(`Insert order_items: ${itemsErr.message}`);
+          }
 
           summary.ordersGenerated++;
 
@@ -164,9 +208,12 @@ export async function GET() {
             schoolName: ps.session.schools?.name ?? "Unknown",
             day: ps.session.day_of_week,
             catererName: caterer?.name ?? "Unknown",
-            mealCount: ps.mealCount,
+            mealCount: actualMealCount,
             sessionDate: ps.sessionDate,
-            items: selectedItems.map(i => ({ name: itemMap.get(i.itemId) ?? i.itemId, quantity: i.quantity })),
+            items: [
+              ...restrictedAssignments.map(a => ({ name: itemMap.get(a.menuItemId) ?? a.menuItemId, quantity: a.quantity })),
+              ...aiSelections.map(s => ({ name: itemMap.get(s.itemId) ?? s.itemId, quantity: s.quantity })),
+            ],
           });
         } catch (err) {
           summary.errors.push(`Session ${ps.session.id}: ${err instanceof Error ? err.message : String(err)}`);
