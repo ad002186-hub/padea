@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { orderEmail, managerOrderEmail } from "@/lib/email-templates";
-import { sendEmail, getNextWeekDate, getArrivalTime } from "@/lib/ordering";
+import { sendEmail, getArrivalTime } from "@/lib/ordering";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +19,8 @@ export async function GET() {
   };
 
   try {
-    const nextMonday = getNextWeekDate("Monday");
-    const nextFriday = getNextWeekDate("Friday");
-
-    // Query all pending + approved orders for next week
+    // Query all pending/approved orders regardless of date — the generate script
+    // already scopes orders to the correct week, so no date filter is needed here.
     const { data: orders, error } = await supabaseAdmin
       .from("orders")
       .select(`
@@ -32,8 +30,7 @@ export async function GET() {
         order_items(id, quantity, assigned_students, menu_items(id, name))
       `)
       .in("status", ["pending", "approved"])
-      .gte("session_date", nextMonday)
-      .lte("session_date", nextFriday);
+      .order("session_date", { ascending: true });
 
     if (error) throw new Error(`Query orders: ${error.message}`);
 
@@ -83,7 +80,7 @@ export async function GET() {
         await sendEmail({
           to: caterer.contact_email,
           cc,
-          subject: `Padea Catering Order — ${schoolNames.join(", ")} — Week of ${nextMonday}`,
+          subject: `Padea Catering Order — ${schoolNames.join(", ")}`,
           html,
         });
 
