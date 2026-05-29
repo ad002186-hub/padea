@@ -363,7 +363,7 @@ export function managerOrderEmail({
     <tr><td style="padding:32px 40px;">
       <p style="margin:0 0 8px;font-size:15px;color:#0f172a;font-family:Arial,sans-serif;">Hi ${managerName},</p>
       <p style="margin:0 0 24px;font-size:14px;color:#475569;font-family:Arial,sans-serif;line-height:1.6;">
-        Meals have been ordered for tonight's session. Please see the delivery details and dietary requirements below.
+        Meals have been ordered for your upcoming session next week. Please keep this email handy for reference on the day. See the delivery details and dietary requirements below.
       </p>
 
       <table width="100%" cellpadding="0" cellspacing="0" style="background:#7c3aed;border-radius:8px;margin-bottom:24px;">
