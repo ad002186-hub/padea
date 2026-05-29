@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase";
+import PendingFlagsSection, { type PendingFlag } from "@/app/components/PendingFlagsSection";
+
+export const revalidate = 0;
 
 const statCardStyles = [
   {
@@ -51,8 +55,9 @@ async function fetchStatCounts(): Promise<number[]> {
       .select("*", { count: "exact", head: true })
       .eq("is_active", true),
     supabaseAdmin
-      .from("caterer_scores")
-      .select("*", { count: "exact", head: true }),
+      .from("flags")
+      .select("*", { count: "exact", head: true })
+      .eq("is_resolved", false),
   ]);
 
   return [
@@ -63,29 +68,6 @@ async function fetchStatCounts(): Promise<number[]> {
   ];
 }
 
-const pendingFlags = [
-  {
-    id: 1,
-    severity: "critical",
-    type: "Allergy",
-    message: "Student #1042 has an unconfirmed allergy note on file.",
-    time: "2h ago",
-  },
-  {
-    id: 2,
-    severity: "warning",
-    type: "Absence",
-    message: "3 students marked absent with no meal count adjustment.",
-    time: "4h ago",
-  },
-  {
-    id: 3,
-    severity: "warning",
-    type: "Exclusion",
-    message: "Exclusion record #88 is missing supervisor sign-off.",
-    time: "Yesterday",
-  },
-];
 
 const weekOrders = [
   { day: "Monday",    caterer: "Sunrise Catering", meals: 142, status: "Confirmed" },
@@ -119,29 +101,23 @@ const recentFeedback = [
   },
 ];
 
-function FlagIcon({ severity }: { severity: string }) {
-  const color =
-    severity === "critical"
-      ? "text-[#ef4444] bg-red-500/10 dark:bg-red-500/15"
-      : "text-[#f59e0b] bg-amber-500/10 dark:bg-amber-500/15";
-  return (
-    <span
-      className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full ${color}`}
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
-    </span>
-  );
-}
-
 export default async function DashboardPage() {
-  const counts = await fetchStatCounts();
-  const statCards = statCardStyles.map((style, i) => ({
-    ...style,
-    value: counts[i],
+  noStore();
+  const [counts, { data: flagsData }] = await Promise.all([
+    fetchStatCounts(),
+    supabaseAdmin
+      .from("flags")
+      .select("id, title, details, type, created_at")
+      .eq("is_resolved", false)
+      .order("created_at", { ascending: false }),
+  ]);
+  const statCards = statCardStyles.map((style, i) => ({ ...style, value: counts[i] }));
+  const pendingFlags: PendingFlag[] = (flagsData ?? []).map((f: any) => ({
+    id: f.id as string,
+    title: f.title as string,
+    details: f.details as string | null,
+    type: f.type as string,
+    created_at: f.created_at as string,
   }));
 
   return (
@@ -198,33 +174,7 @@ export default async function DashboardPage() {
               </Link>
             </div>
           </div>
-          <div className="flex flex-col gap-3">
-            {pendingFlags.map((flag) => (
-              <div
-                key={flag.id}
-                className="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-4"
-              >
-                <FlagIcon severity={flag.severity} />
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-xs font-semibold mb-0.5 ${
-                      flag.severity === "critical"
-                        ? "text-[#ef4444]"
-                        : "text-[#f59e0b]"
-                    }`}
-                  >
-                    {flag.type}
-                  </p>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-snug">
-                    {flag.message}
-                  </p>
-                </div>
-                <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 pt-0.5">
-                  {flag.time}
-                </span>
-              </div>
-            ))}
-          </div>
+          <PendingFlagsSection flags={pendingFlags} />
         </section>
 
         {/* This Week's Orders */}

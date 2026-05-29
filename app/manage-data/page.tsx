@@ -2,6 +2,11 @@ import Link from "next/link";
 
 const manageCards = [
   {
+    title: "Flags",
+    description: "Review, filter, and resolve system flags by type and status.",
+    href: "/flags",
+  },
+  {
     title: "Sessions",
     description: "View active sessions, see student lists per session, and review cancellations.",
     href: "/manage-data/sessions",
