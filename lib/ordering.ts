@@ -347,11 +347,44 @@ Maximise taste scores. Distribute quantities reasonably (no item should have 0 o
     messages: [{ role: "user", content: prompt }],
   });
 
-  const text = msg.content[0].type === "text" ? msg.content[0].text : "";
-  const match = text.match(/\[[\s\S]*\]/);
-  if (!match) throw new Error(`AI did not return valid JSON. Response: ${text.slice(0, 200)}`);
+  const rawText = msg.content[0].type === "text" ? msg.content[0].text : "";
 
-  const parsed: { itemId: string; quantity: number }[] = JSON.parse(match[0]);
+  // Strip markdown code fences if present (e.g. ```json ... ```)
+  const text = rawText.replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1").trim();
+
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) {
+    console.error("AI raw response (no JSON array found):", rawText);
+    throw new Error(`AI did not return a JSON array. Response: ${rawText.slice(0, 300)}`);
+  }
+
+  let parsed: { itemId: string; quantity: number }[];
+  try {
+    const result = JSON.parse(match[0]);
+    if (!Array.isArray(result)) {
+      console.error("AI raw response (not an array):", rawText);
+      throw new Error("Parsed JSON is not an array");
+    }
+    // Validate each item has itemId (string) and quantity (number)
+    for (let i = 0; i < result.length; i++) {
+      const item = result[i];
+      if (typeof item?.itemId !== "string" || item.itemId === "") {
+        console.error(`AI response item[${i}] missing itemId:`, item, "\nFull response:", rawText);
+        throw new Error(`Item at index ${i} has missing or invalid itemId`);
+      }
+      if (typeof item?.quantity !== "number" || isNaN(item.quantity)) {
+        console.error(`AI response item[${i}] missing quantity:`, item, "\nFull response:", rawText);
+        throw new Error(`Item at index ${i} has missing or invalid quantity`);
+      }
+    }
+    parsed = result;
+  } catch (err) {
+    console.error("AI raw response (parse/validation failed):", rawText);
+    throw new Error(
+      `Failed to parse AI meal selection response: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   const total = parsed.reduce((s, i) => s + i.quantity, 0);
   if (total !== mealCount) {
     // Adjust last item to make quantities sum correctly
