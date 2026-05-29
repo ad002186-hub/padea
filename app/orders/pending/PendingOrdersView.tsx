@@ -164,17 +164,29 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
 
               {/* Items: split into dietary and general */}
               {order.items.length > 0 && (() => {
-                // Use Array.isArray to guard against undefined/null/non-array values
-                const isDietary = (i: PendingOrderItem) =>
-                  Array.isArray(i.assignedStudents) && i.assignedStudents.length > 0;
-                const dietaryItems = order.items.filter(isDietary);
-                // General = everything that isn't a dietary-assigned item
-                const generalItems = order.items.filter(i => !isDietary(i));
+                // Dietary items: rows that have at least one assigned student
+                const dietaryItems = order.items.filter(
+                  i => Array.isArray(i.assignedStudents) && i.assignedStudents.length > 0
+                );
+
+                // General items: compute per-item general quantity.
+                // For merged rows (item serves both restricted + unrestricted students),
+                // general qty = total qty − restricted student count.
+                // Items where general qty === 0 are omitted from this section.
+                const generalItems: { name: string; quantity: number }[] = order.items
+                  .map(i => {
+                    const restrictedQty = Array.isArray(i.assignedStudents)
+                      ? i.assignedStudents.length
+                      : 0;
+                    return { name: i.name, quantity: i.quantity - restrictedQty };
+                  })
+                  .filter(i => i.quantity > 0);
+
                 const hasDietary = dietaryItems.length > 0;
 
                 return (
                   <div className="flex flex-col gap-3">
-                    {/* Dietary section — only shown when there are per-student assignments */}
+                    {/* Dietary section — shows restricted-student qty only */}
                     {hasDietary && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-2">
@@ -187,7 +199,7 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                                 <tr key={`dietary-${idx}`}>
                                   <td className="px-4 py-3">
                                     <p className="font-medium text-slate-800 dark:text-slate-200">
-                                      {item.name} × {item.quantity}
+                                      {item.name} × {item.assignedStudents!.length}
                                     </p>
                                     {item.assignedStudents!.map((s) => (
                                       <p key={s.studentId} className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 pl-3">
@@ -206,7 +218,8 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                       </div>
                     )}
 
-                    {/* General section — always shown; includes all items when no dietary orders exist */}
+                    {/* General section — shows unrestricted qty; always shown when items exist */}
+                    {generalItems.length > 0 && (
                     <div>
                       {hasDietary && (
                         <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-2">
@@ -216,7 +229,7 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                       <div className="rounded-lg border border-slate-100 dark:border-[#2a2d3e] overflow-hidden">
                         <table className="w-full text-sm">
                           <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
-                            {(hasDietary ? generalItems : order.items).map((item, idx) => (
+                            {generalItems.map((item, idx) => (
                               <tr key={`general-${idx}`}>
                                 <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{item.name}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-200">
@@ -233,6 +246,7 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                         </p>
                       )}
                     </div>
+                    )}
                   </div>
                 );
               })()}
