@@ -92,6 +92,13 @@ const recentFeedback = [
   },
 ];
 
+function fmtSessionDate(ymd: string): string {
+  if (!ymd) return "";
+  const [, m, d] = ymd.split("-").map(Number);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d} ${months[m - 1]}`;
+}
+
 const STATUS_BADGE: Record<string, string> = {
   pending:   "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20",
   approved:  "bg-[#7c3aed]/10 text-[#7c3aed] border-[#7c3aed]/20",
@@ -110,22 +117,14 @@ export default async function DashboardPage() {
 
   const ORDER_SELECT = "id, session_date, meal_count, status, sessions(day_of_week, schools(name)), caterers(name)";
 
-  const [counts, { data: flagsData }, { data: thisWeek }] = await Promise.all([
+  const [counts, { data: flagsData }, { data: weekOrdersData }] = await Promise.all([
     fetchStatCounts(),
     supabaseAdmin.from("flags").select("id, title, details, type, created_at").eq("is_resolved", false).order("created_at", { ascending: false }),
+    // All orders for the current week (Mon–Sun), all statuses
     supabaseAdmin.from("orders").select(ORDER_SELECT).gte("session_date", monday).lte("session_date", sunday).order("session_date", { ascending: true }),
   ]);
 
-  // Fallback: if no orders this week, show all pending orders regardless of date
-  let weekOrdersRaw = thisWeek ?? [];
-  if (weekOrdersRaw.length === 0) {
-    const { data: pending } = await supabaseAdmin
-      .from("orders")
-      .select(ORDER_SELECT)
-      .eq("status", "pending")
-      .order("session_date", { ascending: true });
-    weekOrdersRaw = pending ?? [];
-  }
+  const weekOrdersRaw = weekOrdersData ?? [];
 
   const statCards = statCardStyles.map((style, i) => ({ ...style, value: counts[i] }));
   const pendingFlags: PendingFlag[] = (flagsData ?? []).map((f: any) => ({
@@ -142,6 +141,7 @@ export default async function DashboardPage() {
     caterer: (o.caterers as any)?.name ?? "Unknown",
     meals: o.meal_count as number,
     status: o.status as string,
+    sessionDate: o.session_date as string,
   }));
 
   return (
@@ -179,70 +179,72 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Pending Flags */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-              Pending Flags
-            </h2>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
-                {pendingFlags.length} open
-              </span>
-              <Link
-                href="/flags"
-                className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-              >
-                View all →
-              </Link>
-            </div>
+      {/* Pending Flags */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">Pending Flags</h2>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
+              {pendingFlags.length} open
+            </span>
+            <Link href="/flags" className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+              View all →
+            </Link>
           </div>
-          <PendingFlagsSection flags={pendingFlags} />
-        </section>
+        </div>
+        <PendingFlagsSection flags={pendingFlags} />
+      </section>
 
-        {/* This Week's Orders */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">This Week's Orders</h2>
-            <Link href="/orders" className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">View all →</Link>
+      {/* This Week's Orders — card grid */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">This Week's Orders</h2>
+          <Link href="/orders" className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+            View all →
+          </Link>
+        </div>
+
+        {weekOrders.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-10 flex items-center justify-center">
+            <p className="text-sm text-slate-400 dark:text-slate-500">No orders this week yet.</p>
           </div>
-          {weekOrders.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-10 flex items-center justify-center">
-              <p className="text-sm text-slate-400 dark:text-slate-500">No orders this week yet.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {weekOrders.slice(0, 6).map((order) => (
+                <div key={order.id} className="relative rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-4">
+                  {/* Status badge — top right */}
+                  <span className={`absolute top-3 right-3 text-xs font-medium px-2 py-0.5 rounded-full border capitalize ${STATUS_BADGE[order.status] ?? STATUS_BADGE.pending}`}>
+                    {order.status}
+                  </span>
+
+                  {/* Meal count */}
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white leading-none mt-1">{order.meals}</p>
+                  <p className="text-xs text-slate-400 dark:text-gray-500 mb-3">meals</p>
+
+                  {/* School */}
+                  <p className="text-sm font-medium text-slate-900 dark:text-white truncate mb-1 pr-12">{order.school}</p>
+
+                  {/* Day · Date */}
+                  <p className="text-xs text-slate-400 dark:text-gray-500 mb-0.5">
+                    {order.day}{order.sessionDate ? ` · ${fmtSessionDate(order.sessionDate)}` : ""}
+                  </p>
+
+                  {/* Caterer */}
+                  <p className="text-xs text-slate-400 dark:text-gray-500 truncate">{order.caterer}</p>
+                </div>
+              ))}
             </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-[#2a2d3e] bg-slate-50 dark:bg-white/[0.03]">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">School</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Day</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Caterer</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Meals</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-[#2a2d3e]">
-                  {weekOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors">
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{order.school}</td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{order.day}</td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{order.caterer}</td>
-                      <td className="px-4 py-3 text-right text-slate-800 dark:text-slate-200">{order.meals}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border capitalize ${STATUS_BADGE[order.status] ?? STATUS_BADGE.pending}`}>
-                          {order.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
+            {weekOrders.length > 6 && (
+              <div className="mt-3 text-right">
+                <Link href="/orders" className="text-xs font-medium text-[#7c3aed] hover:text-[#6d28d9] transition-colors">
+                  View all {weekOrders.length} orders →
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
       {/* Recent Feedback */}
       <section>

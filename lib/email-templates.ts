@@ -90,6 +90,9 @@ export function orderEmail({ catererName, contactName, sessions }: OrderEmailPar
               ${deliveryRow("Manager", s.managerName)}
               ${deliveryRow("Manager mobile", s.managerMobile)}
             </table>
+            <p style="margin:12px 0 0;color:#c4b5fd;font-size:12px;font-family:Arial,sans-serif;line-height:1.6;">
+              For any concerns during delivery, please contact the on-site manager directly using the details above.
+            </p>
           </td>
         </tr>
       </table>`;
