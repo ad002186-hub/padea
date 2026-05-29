@@ -17,6 +17,7 @@ export type PendingOrder = {
   catererName: string;
   mealCount: number;
   status: string;
+  totalCost: number | null;
   items: PendingOrderItem[];
 };
 
@@ -133,6 +134,11 @@ export default function PendingOrdersView({ orders: initial }: { orders: Pending
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     {order.day} · {shortDate(order.sessionDate)} · {order.catererName} · {order.mealCount} meals
+                    {order.totalCost !== null && (
+                      <span className="ml-2 text-slate-700 dark:text-slate-300 font-medium">
+                        · Total: ${order.totalCost.toFixed(2)} <span className="text-xs font-normal text-slate-400">(inc GST)</span>
+                      </span>
+                    )}
                   </p>
                 </div>
                 {(order.status === "pending" || order.status === "approved") && (

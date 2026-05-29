@@ -5,24 +5,55 @@ import OrdersTable from "./OrdersTable";
 
 export const revalidate = 0;
 
+function calcOrderCost(
+  mealCount: number,
+  pricePerItem: number | null,
+  priceIncludesGst: boolean,
+  deliveryFee: number | null,
+  includeDelivery: boolean
+): number | null {
+  if (!pricePerItem) return null;
+  let itemCost = mealCount * pricePerItem;
+  if (!priceIncludesGst) itemCost *= 1.1;
+  return itemCost + (includeDelivery && deliveryFee ? deliveryFee : 0);
+}
+
 export default async function OrdersPage() {
   noStore();
 
   const { data, error } = await supabaseAdmin
     .from("orders")
-    .select("id, session_date, meal_count, status, sessions(day_of_week, schools(name)), caterers(name)")
+    .select("id, session_date, meal_count, status, caterer_id, sessions(day_of_week, schools(name)), caterers(name, price_per_item, price_includes_gst, delivery_fee)")
     .order("session_date", { ascending: false })
     .limit(200);
 
-  const orders = (data ?? []).map((row: any) => ({
-    id: row.id as string,
-    sessionDate: row.session_date as string,
-    day: (row.sessions as any)?.day_of_week ?? "?",
-    schoolName: (row.sessions as any)?.schools?.name ?? "Unknown",
-    catererName: (row.caterers as any)?.name ?? "Unknown",
-    mealCount: row.meal_count as number,
-    status: row.status as string,
-  }));
+  // Delivery fee is charged once per caterer per day (e.g. GYG per trip)
+  const deliveryCharged = new Set<string>();
+
+  const orders = (data ?? []).map((row: any) => {
+    const catererId = row.caterer_id as string;
+    const deliveryKey = `${catererId}:${row.session_date}`;
+    const includeDelivery = !deliveryCharged.has(deliveryKey);
+    if (includeDelivery) deliveryCharged.add(deliveryKey);
+
+    const caterer = row.caterers as any;
+    return {
+      id: row.id as string,
+      sessionDate: row.session_date as string,
+      day: (row.sessions as any)?.day_of_week ?? "?",
+      schoolName: (row.sessions as any)?.schools?.name ?? "Unknown",
+      catererName: caterer?.name ?? "Unknown",
+      mealCount: row.meal_count as number,
+      status: row.status as string,
+      totalCost: calcOrderCost(
+        row.meal_count,
+        caterer?.price_per_item ?? null,
+        caterer?.price_includes_gst ?? false,
+        caterer?.delivery_fee ?? null,
+        includeDelivery
+      ),
+    };
+  });
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
 

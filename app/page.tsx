@@ -68,29 +68,17 @@ async function fetchStatCounts(): Promise<number[]> {
 
 
 
-const recentFeedback = [
-  {
-    id: 1,
-    group: "Year 4 – Room 7",
-    comment: "Portions were too small on Wednesday.",
-    date: "26 May",
-    sentiment: "negative",
-  },
-  {
-    id: 2,
-    group: "Year 6 – Room 2",
-    comment: "Really enjoyed the pasta option this week.",
-    date: "25 May",
-    sentiment: "positive",
-  },
-  {
-    id: 3,
-    group: "Year 3 – Room 1",
-    comment: "A student reported the soup was cold.",
-    date: "24 May",
-    sentiment: "negative",
-  },
-];
+function daysAgo(dateStr: string): string {
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days}d ago`;
+}
+
+function scoreStars(score: number): string {
+  const n = Math.min(5, Math.max(1, Math.round(score)));
+  return "★".repeat(n) + "☆".repeat(5 - n);
+}
 
 function fmtSessionDate(ymd: string): string {
   if (!ymd) return "";
@@ -117,11 +105,16 @@ export default async function DashboardPage() {
 
   const ORDER_SELECT = "id, session_date, meal_count, status, sessions(day_of_week, schools(name)), caterers(name)";
 
-  const [counts, { data: flagsData }, { data: weekOrdersData }] = await Promise.all([
+  const [counts, { data: flagsData }, { data: weekOrdersData }, { data: feedbackData }] = await Promise.all([
     fetchStatCounts(),
     supabaseAdmin.from("flags").select("id, title, details, type, created_at").eq("is_resolved", false).order("created_at", { ascending: false }),
     // All orders for the current week (Mon–Sun), all statuses
     supabaseAdmin.from("orders").select(ORDER_SELECT).gte("session_date", monday).lte("session_date", sunday).order("session_date", { ascending: true }),
+    // 3 most recent caterer feedback scores
+    supabaseAdmin.from("caterer_scores")
+      .select("id, food_quality, delivery_timing, presentation, notes, submitted_at, caterers(name), orders(session_date, sessions(day_of_week, schools(name)))")
+      .order("submitted_at", { ascending: false })
+      .limit(3),
   ]);
 
   const weekOrdersRaw = weekOrdersData ?? [];
@@ -134,6 +127,19 @@ export default async function DashboardPage() {
     type: f.type as string,
     created_at: f.created_at as string,
   }));
+  const recentFeedback = (feedbackData ?? []).map((f: any) => {
+    const order = f.orders as any;
+    return {
+      id: f.id as string,
+      weightedScore: (f.food_quality * 0.50) + (f.delivery_timing * 0.40) + (f.presentation * 0.10),
+      notes: f.notes as string | null,
+      submittedAt: f.submitted_at as string,
+      catererName: (f.caterers as any)?.name ?? "Unknown",
+      schoolName: order?.sessions?.schools?.name ?? "Unknown",
+      sessionDay: order?.sessions?.day_of_week ?? "",
+    };
+  });
+
   const weekOrders = weekOrdersRaw.map((o: any) => ({
     id: o.id as string,
     day: (o.sessions as any)?.day_of_week ?? "?",
@@ -249,45 +255,42 @@ export default async function DashboardPage() {
       {/* Recent Feedback */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-            Recent Feedback
-          </h2>
-          <Link
-            href="/feedback"
-            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-          >
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">Recent Feedback</h2>
+          <Link href="/feedback" className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
             View all →
           </Link>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {recentFeedback.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-5"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  {item.group}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      item.sentiment === "positive"
-                        ? "bg-[#10b981]"
-                        : "bg-[#ef4444]"
-                    }`}
-                  />
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
-                    {item.date}
-                  </span>
+        {recentFeedback.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-10 flex items-center justify-center">
+            <p className="text-sm text-slate-400 dark:text-slate-500">No feedback submitted yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {recentFeedback.map((fb) => (
+              <Link
+                key={fb.id}
+                href={`/feedback/${fb.id}`}
+                className="rounded-xl border border-slate-200 dark:border-[#2a2d3e] bg-white dark:bg-[#1e2235] p-5 hover:border-[#7c3aed]/40 dark:hover:border-[#7c3aed]/40 transition-colors block"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{fb.schoolName}</p>
+                    {fb.sessionDay && <p className="text-xs text-slate-400 dark:text-gray-500">{fb.sessionDay}</p>}
+                  </div>
+                  <span className="text-xs text-slate-400 dark:text-gray-500 shrink-0 ml-2">{daysAgo(fb.submittedAt)}</span>
                 </div>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                "{item.comment}"
-              </p>
-            </div>
-          ))}
-        </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{fb.catererName}</p>
+                <div className="flex items-center gap-1.5 mb-3">
+                  <span className="text-[#f59e0b] text-sm leading-none">{scoreStars(fb.weightedScore)}</span>
+                  <span className="text-xs text-slate-400 dark:text-gray-500">{fb.weightedScore.toFixed(1)}</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                  {fb.notes ? `"${fb.notes.slice(0, 100)}${fb.notes.length > 100 ? "…" : ""}"` : "No comments"}
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
