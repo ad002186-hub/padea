@@ -4,7 +4,6 @@ import {
   getNextWeekDate,
   checkExclusion,
   getAttendingStudents,
-  buildRestrictionSet,
   checkMinimumOrders,
   getTasteScores,
   getOrderHistory,
@@ -125,13 +124,11 @@ export async function GET() {
 
       for (const ps of group) {
         try {
-          const restrictions = buildRestrictionSet(ps.students);
           const tasteScores = await getTasteScores(menuItems.map((m) => m.id), ps.session.school_id);
           const orderHistory = await getOrderHistory(ps.session.id);
 
           const selectedItems = await selectMealsWithAI({
             menuItems,
-            restrictions,
             tasteScores,
             orderHistory,
             mealCount: ps.mealCount,
