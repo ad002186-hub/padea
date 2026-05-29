@@ -101,12 +101,32 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default async function DashboardPage() {
   noStore();
-  const { monday, friday } = getCurrentWeekRange();
-  const [counts, { data: flagsData }, { data: weekOrdersData }] = await Promise.all([
+
+  // Current week: Monday–Sunday
+  const { monday } = getCurrentWeekRange();
+  const [y, mo, d] = monday.split("-").map(Number);
+  const sunDate = new Date(y, mo - 1, d + 6);
+  const sunday = `${sunDate.getFullYear()}-${String(sunDate.getMonth() + 1).padStart(2, "0")}-${String(sunDate.getDate()).padStart(2, "0")}`;
+
+  const ORDER_SELECT = "id, session_date, meal_count, status, sessions(day_of_week, schools(name)), caterers(name)";
+
+  const [counts, { data: flagsData }, { data: thisWeek }] = await Promise.all([
     fetchStatCounts(),
     supabaseAdmin.from("flags").select("id, title, details, type, created_at").eq("is_resolved", false).order("created_at", { ascending: false }),
-    supabaseAdmin.from("orders").select("id, session_date, meal_count, status, sessions(day_of_week, schools(name)), caterers(name)").gte("session_date", monday).lte("session_date", friday).order("session_date", { ascending: true }),
+    supabaseAdmin.from("orders").select(ORDER_SELECT).gte("session_date", monday).lte("session_date", sunday).order("session_date", { ascending: true }),
   ]);
+
+  // Fallback: if no orders this week, show all pending orders regardless of date
+  let weekOrdersRaw = thisWeek ?? [];
+  if (weekOrdersRaw.length === 0) {
+    const { data: pending } = await supabaseAdmin
+      .from("orders")
+      .select(ORDER_SELECT)
+      .eq("status", "pending")
+      .order("session_date", { ascending: true });
+    weekOrdersRaw = pending ?? [];
+  }
+
   const statCards = statCardStyles.map((style, i) => ({ ...style, value: counts[i] }));
   const pendingFlags: PendingFlag[] = (flagsData ?? []).map((f: any) => ({
     id: f.id as string,
@@ -115,7 +135,7 @@ export default async function DashboardPage() {
     type: f.type as string,
     created_at: f.created_at as string,
   }));
-  const weekOrders = (weekOrdersData ?? []).map((o: any) => ({
+  const weekOrders = weekOrdersRaw.map((o: any) => ({
     id: o.id as string,
     day: (o.sessions as any)?.day_of_week ?? "?",
     school: (o.sessions as any)?.schools?.name ?? "Unknown",
