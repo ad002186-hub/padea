@@ -259,7 +259,6 @@ export function pendingOrdersEmail({ coordinatorName, weekDate, orders, approveU
         The automated system has generated meal orders for the week of <strong>${weekDate}</strong>.
         Please review and approve by <strong>Thursday 12pm</strong>.
       </p>
-
       <h3 style="margin:0 0 12px;font-size:14px;color:#0f172a;font-family:Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Order Summary</h3>
       <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px;">
         <thead>
@@ -278,7 +277,6 @@ export function pendingOrdersEmail({ coordinatorName, weekDate, orders, approveU
           </tr>
         </tbody>
       </table>
-
       <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;margin-bottom:24px;">
         <tr><td style="padding:14px 18px;">
           <p style="margin:0;font-size:13px;color:#92400e;font-family:Arial,sans-serif;font-weight:500;">
@@ -286,7 +284,6 @@ export function pendingOrdersEmail({ coordinatorName, weekDate, orders, approveU
           </p>
         </td></tr>
       </table>
-
       <table cellpadding="0" cellspacing="0">
         <tr><td style="background:#7c3aed;border-radius:8px;">
           <a href="${approveUrl}" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;font-family:Arial,sans-serif;">Review orders →</a>
@@ -295,6 +292,147 @@ export function pendingOrdersEmail({ coordinatorName, weekDate, orders, approveU
     </td></tr>
   </table>
   ${footer("Padea Catering System · <a href='${approveUrl}' style='color:#7c3aed;'>Review pending orders</a>")}
+</body>
+</html>`;
+}
+
+
+// ─── Manager Order Email ──────────────────────────────────────────────────────
+
+export interface ManagerOrderEmailParams {
+  managerName: string;
+  schoolName: string;
+  sessionDate: string;
+  catererName: string;
+  dinnerTime?: string | null;
+  arrivalTime?: string | null;
+  building?: string | null;
+  totalMeals: number;
+  dietaryMeals: {
+    mealName: string;
+    students: { name: string; restrictions: string[] }[];
+  }[];
+}
+
+export function managerOrderEmail({
+  managerName, schoolName, sessionDate, catererName,
+  arrivalTime, building, totalMeals, dietaryMeals,
+}: ManagerOrderEmailParams): string {
+  const hasDietary = dietaryMeals.length > 0;
+
+  let allRows = 0;
+  const dietaryTableRows = dietaryMeals.flatMap(meal =>
+    meal.students.map(student => {
+      const rowBg = allRows++ % 2 === 0 ? "#ffffff" : "#f8fafc";
+      return `
+        <tr style="background:${rowBg};">
+          <td style="padding:8px 12px;font-size:13px;color:#1e293b;font-family:Arial,sans-serif;">${meal.mealName}</td>
+          <td style="padding:8px 12px;font-size:13px;color:#475569;font-family:Arial,sans-serif;">${student.name}</td>
+          <td style="padding:8px 12px;">
+            ${student.restrictions.map(r => `<span style="background:#f59e0b;color:#fff;font-size:11px;padding:2px 8px;border-radius:99px;font-family:Arial,sans-serif;display:inline-block;margin-right:4px;">${r}</span>`).join("")}
+          </td>
+        </tr>`;
+    })
+  ).join("");
+
+  const dietarySection = hasDietary ? `
+    <h3 style="margin:24px 0 10px;font-size:14px;color:#0f172a;font-family:Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Dietary Requirement Meals</h3>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;">
+      <thead>
+        <tr style="background:#f1f5f9;">
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:#64748b;font-family:Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Meal</th>
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:#64748b;font-family:Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Student</th>
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:#64748b;font-family:Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Requirement</th>
+        </tr>
+      </thead>
+      <tbody>${dietaryTableRows}</tbody>
+    </table>
+    <p style="margin:0 0 20px;font-size:13px;color:#475569;font-family:Arial,sans-serif;line-height:1.6;">
+      All other students may choose from any remaining general meals on the day.
+    </p>` : `
+    <p style="margin:20px 0;font-size:13px;color:#475569;font-family:Arial,sans-serif;line-height:1.6;">
+      No specific dietary requirements for this session — students may choose freely on the day.
+    </p>`;
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  ${header("Meal Delivery")}
+  <table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;margin:24px auto;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <tr><td style="padding:32px 40px;">
+      <p style="margin:0 0 8px;font-size:15px;color:#0f172a;font-family:Arial,sans-serif;">Hi ${managerName},</p>
+      <p style="margin:0 0 24px;font-size:14px;color:#475569;font-family:Arial,sans-serif;line-height:1.6;">
+        Meals have been ordered for tonight's session. Please see the delivery details and dietary requirements below.
+      </p>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#7c3aed;border-radius:8px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 10px;color:#c4b5fd;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;font-family:Arial,sans-serif;font-weight:600;">Delivery Details</p>
+          <table cellpadding="0" cellspacing="0" width="100%">
+            ${deliveryRow("School", schoolName)}
+            ${deliveryRow("Date", sessionDate)}
+            ${deliveryRow("Caterer", catererName)}
+            ${deliveryRow("Expected arrival", arrivalTime)}
+            ${deliveryRow("Location", building)}
+            ${deliveryRow("Total meals", String(totalMeals))}
+          </table>
+        </td></tr>
+      </table>
+
+      ${dietarySection}
+
+      <p style="margin:0;font-size:13px;color:#475569;font-family:Arial,sans-serif;line-height:1.6;">
+        If there are any issues with the delivery, please contact the caterer directly.
+      </p>
+    </td></tr>
+  </table>
+  ${footer("Padea Catering System · <a href='https://padea.vercel.app' style='color:#7c3aed;'>padea.vercel.app</a>")}
+</body>
+</html>`;
+}
+
+
+// ─── Feedback Form Email ─────────────────────────────────────────────────────
+
+export interface FeedbackFormEmailParams {
+  managerName: string;
+  schoolName: string;
+  catererName: string;
+  sessionDate: string;
+  formUrl: string;
+}
+
+export function feedbackFormEmail({
+  managerName, schoolName, catererName, formUrl,
+}: FeedbackFormEmailParams): string {
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  ${header("Feedback")}
+  <table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;margin:24px auto;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <tr><td style="padding:40px 40px;text-align:center;">
+      <p style="margin:0 0 8px;font-size:15px;color:#0f172a;font-family:Arial,sans-serif;text-align:left;">Hi ${managerName},</p>
+      <p style="margin:0 0 32px;font-size:14px;color:#475569;font-family:Arial,sans-serif;line-height:1.6;text-align:left;">
+        Thanks for running tonight's <strong>${schoolName}</strong> session. We'd love your feedback on the
+        <strong>${catererName}</strong> delivery — it takes less than 60 seconds.
+      </p>
+
+      <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 32px;">
+        <tr><td style="background:#7c3aed;border-radius:12px;">
+          <a href="${formUrl}" style="display:inline-block;padding:16px 40px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;font-family:Arial,sans-serif;">
+            Rate tonight's delivery →
+          </a>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#94a3b8;font-family:Arial,sans-serif;line-height:1.6;">
+        Your feedback helps us improve meal quality and delivery reliability for students.
+      </p>
+    </td></tr>
+  </table>
+  ${footer("Padea Catering System · <a href='https://padea.vercel.app' style='color:#7c3aed;'>padea.vercel.app</a>")}
 </body>
 </html>`;
 }

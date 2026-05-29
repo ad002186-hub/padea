@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/ordering/generate", "schedule": "0 12 * * 3" },
-    { "path": "/api/ordering/send", "schedule": "0 12 * * 4" }
+    { "path": "/api/ordering/send",     "schedule": "0 12 * * 4" },
+    { "path": "/api/feedback/trigger",  "schedule": "0 21 * * *" }
   ]
 }

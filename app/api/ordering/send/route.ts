@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
-import { orderEmail } from "@/lib/email-templates";
+import { orderEmail, managerOrderEmail } from "@/lib/email-templates";
 import { sendEmail, getNextWeekDate, getArrivalTime } from "@/lib/ordering";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,12 @@ function formatDisplayDate(ymd: string): string {
 }
 
 export async function GET() {
-  const summary = { emailsSent: 0, ordersUpdated: 0, errors: [] as string[] };
+  const summary = {
+    emailsSent: 0,
+    managerEmailsSent: 0,
+    ordersUpdated: 0,
+    errors: [] as string[],
+  };
 
   try {
     const nextMonday = getNextWeekDate("Monday");
@@ -22,9 +27,9 @@ export async function GET() {
       .from("orders")
       .select(`
         id, session_date, meal_count, email_to, email_cc, caterer_id,
-        sessions(id, day_of_week, dinner_time, manager_name, manager_mobile, school_id, schools(name)),
+        sessions(id, day_of_week, dinner_time, manager_name, manager_mobile, manager_email, school_id, schools(name)),
         caterers(id, name, contact_name, contact_email, no_cc, cc_email),
-        order_items(id, quantity, menu_item_id, menu_items(id, name))
+        order_items(id, quantity, assigned_students, menu_items(id, name))
       `)
       .in("status", ["pending", "approved"])
       .gte("session_date", nextMonday)
@@ -40,7 +45,7 @@ export async function GET() {
       catererGroups.get(cid)!.push(order);
     }
 
-    // Send one email per caterer covering all their sessions
+    // Send one caterer email per caterer covering all their sessions
     for (const [, group] of catererGroups) {
       const firstOrder = group[0];
       const caterer = firstOrder.caterers as any;
@@ -97,6 +102,45 @@ export async function GET() {
 
         summary.emailsSent++;
         summary.ordersUpdated += group.length;
+
+        // Send manager order email per session in this group
+        for (const order of group) {
+          const session = (order as any).sessions as any;
+          const managerEmail = session?.manager_email;
+          if (!managerEmail) continue;
+
+          try {
+            const dietaryMeals = ((order as any).order_items ?? [])
+              .filter((oi: any) => Array.isArray(oi.assigned_students) && oi.assigned_students.length > 0)
+              .map((oi: any) => ({
+                mealName: oi.menu_items?.name ?? "Unknown",
+                students: (oi.assigned_students as { name: string; restrictions: string[] }[]).map(s => ({
+                  name: s.name,
+                  restrictions: s.restrictions ?? [],
+                })),
+              }));
+
+            await sendEmail({
+              to: managerEmail,
+              subject: `Meal delivery details — ${session.schools?.name ?? "School"}, ${session.day_of_week} ${formatDisplayDate((order as any).session_date)}`,
+              html: managerOrderEmail({
+                managerName: session.manager_name ?? "Manager",
+                schoolName: session.schools?.name ?? "School",
+                sessionDate: formatDisplayDate((order as any).session_date),
+                catererName: caterer.name,
+                dinnerTime: session.dinner_time ?? null,
+                arrivalTime: getArrivalTime(session.dinner_time),
+                totalMeals: (order as any).meal_count as number,
+                dietaryMeals,
+              }),
+            });
+            summary.managerEmailsSent++;
+          } catch (err) {
+            summary.errors.push(
+              `Manager email session ${(order as any).session_id}: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+        }
       } catch (err) {
         summary.errors.push(`Caterer ${caterer.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
