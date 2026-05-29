@@ -161,6 +161,19 @@ export async function GET() {
             });
           }
 
+          // ── Skip if order already exists for this session + date (duplicate guard) ──
+          const { data: existingOrder } = await supabaseAdmin
+            .from("orders")
+            .select("id")
+            .eq("session_id", ps.session.id)
+            .eq("session_date", ps.sessionDate)
+            .maybeSingle();
+
+          if (existingOrder) {
+            summary.errors.push(`Session ${ps.session.id} on ${ps.sessionDate}: order already exists — skipped`);
+            continue;
+          }
+
           // ── Insert order + order_items ────────────────────────────────────
           const actualMealCount = restrictedAssignments.reduce((s, a) => s + a.quantity, 0) + unrestrictedCount;
           const emailTo = caterer?.contact_email ?? "";
