@@ -290,6 +290,24 @@ export function checkMinimumOrders(
   return { meetsMinimum: totalMeals >= min4, itemCount, totalMeals, minRequired: min4 };
 }
 
+function fallbackMealSelection(
+  safeItems: MenuItem[],
+  tasteScores: Map<string, number>,
+  mealCount: number,
+  itemCount: number
+): { itemId: string; quantity: number }[] {
+  if (safeItems.length === 0) throw new Error("No safe menu items available for fallback selection");
+  const ranked = [...safeItems]
+    .sort((a, b) => (tasteScores.get(b.id) ?? 0.5) - (tasteScores.get(a.id) ?? 0.5))
+    .slice(0, Math.min(itemCount, safeItems.length));
+  const base = Math.floor(mealCount / ranked.length);
+  const remainder = mealCount % ranked.length;
+  return ranked.map((item, i) => ({
+    itemId: item.id,
+    quantity: base + (i < remainder ? 1 : 0),
+  }));
+}
+
 export async function selectMealsWithAI(params: {
   menuItems: MenuItem[];
   restrictions: RestrictionSet;
@@ -339,57 +357,65 @@ ${recentNames.length > 0 ? recentNames.join(", ") : "None"}
 
 Maximise taste scores. Distribute quantities reasonably (no item should have 0 or all meals).`;
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const msg = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system: "You are a meal selection assistant for Padea, a school tutoring company. Select meals that satisfy ALL dietary restrictions, maximise student satisfaction based on taste scores, and avoid items ordered recently. Respond ONLY with a valid JSON array, no other text.",
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const rawText = msg.content[0].type === "text" ? msg.content[0].text : "";
-
-  // Strip markdown code fences if present (e.g. ```json ... ```)
-  const text = rawText.replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1").trim();
-
-  const match = text.match(/\[[\s\S]*\]/);
-  if (!match) {
-    console.error("AI raw response (no JSON array found):", rawText);
-    throw new Error(`AI did not return a JSON array. Response: ${rawText.slice(0, 300)}`);
-  }
+  console.error(
+    `[selectMealsWithAI] Prompt for ${schoolName} on ${sessionDate} (${catererName}):\n${prompt}`
+  );
 
   let parsed: { itemId: string; quantity: number }[];
   try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const msg = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system: "You are a meal selection assistant for Padea, a school tutoring company. Select meals that satisfy ALL dietary restrictions, maximise student satisfaction based on taste scores, and avoid items ordered recently. Respond ONLY with a valid JSON array, no other text.",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const rawText = msg.content[0].type === "text" ? msg.content[0].text : "";
+
+    // Strip markdown code fences if present (e.g. ```json ... ```)
+    const text = rawText.replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1").trim();
+
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) {
+      console.error("[selectMealsWithAI] No JSON array in response:", rawText);
+      throw new Error(`AI did not return a JSON array. Response: ${rawText.slice(0, 300)}`);
+    }
+
     const result = JSON.parse(match[0]);
     if (!Array.isArray(result)) {
-      console.error("AI raw response (not an array):", rawText);
+      console.error("[selectMealsWithAI] Response is not an array:", rawText);
       throw new Error("Parsed JSON is not an array");
     }
-    // Validate each item has itemId (string) and quantity (number)
     for (let i = 0; i < result.length; i++) {
       const item = result[i];
       if (typeof item?.itemId !== "string" || item.itemId === "") {
-        console.error(`AI response item[${i}] missing itemId:`, item, "\nFull response:", rawText);
+        console.error(`[selectMealsWithAI] item[${i}] missing itemId:`, item, "\nRaw:", rawText);
         throw new Error(`Item at index ${i} has missing or invalid itemId`);
       }
       if (typeof item?.quantity !== "number" || isNaN(item.quantity)) {
-        console.error(`AI response item[${i}] missing quantity:`, item, "\nFull response:", rawText);
+        console.error(`[selectMealsWithAI] item[${i}] missing quantity:`, item, "\nRaw:", rawText);
         throw new Error(`Item at index ${i} has missing or invalid quantity`);
       }
     }
     parsed = result;
+
+    const total = parsed.reduce((s, i) => s + i.quantity, 0);
+    if (total !== mealCount) {
+      parsed[parsed.length - 1].quantity += mealCount - total;
+    }
   } catch (err) {
-    console.error("AI raw response (parse/validation failed):", rawText);
-    throw new Error(
-      `Failed to parse AI meal selection response: ${err instanceof Error ? err.message : String(err)}`
+    console.error(
+      `[selectMealsWithAI] AI selection failed for ${schoolName} on ${sessionDate} — falling back to taste-score ranking.`,
+      err instanceof Error ? err.message : String(err)
+    );
+    parsed = fallbackMealSelection(safeItems, tasteScores, mealCount, itemCount);
+    console.error(
+      `[selectMealsWithAI] Fallback selected ${parsed.length} item(s):`,
+      parsed.map((i) => `${i.itemId} x${i.quantity}`).join(", ")
     );
   }
 
-  const total = parsed.reduce((s, i) => s + i.quantity, 0);
-  if (total !== mealCount) {
-    // Adjust last item to make quantities sum correctly
-    parsed[parsed.length - 1].quantity += mealCount - total;
-  }
   return parsed;
 }
 
