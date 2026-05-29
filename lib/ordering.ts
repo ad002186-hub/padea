@@ -372,7 +372,7 @@ export async function sendEmail({
 }) {
   const resend = new Resend(process.env.RESEND_API_KEY);
   await resend.emails.send({
-    from: "orders@padea.com.au",
+    from: "onboarding@resend.dev", // TODO: replace with verified domain email before production
     to: [to],
     cc: cc ? [cc] : undefined,
     subject,
