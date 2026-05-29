@@ -65,7 +65,7 @@ export async function GET() {
           "the caterer";
 
         const schoolName = (session as any).schools?.name ?? "School";
-        const formUrl = `https://forms.fillout.com/manager-feedback?session_id=${session.id}&date=${todayStr}`;
+        const formUrl = `https://forms.fillout.com/t/9mEM7TPhruus?session_id=${session.id}&date=${todayStr}`;
 
         await sendEmail({
           to: managerEmail,
