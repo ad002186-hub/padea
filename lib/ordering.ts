@@ -421,7 +421,7 @@ export async function createFlag({
   }
 
   await sendEmail({
-    to: "dylan@padea.com.au",
+    to: process.env.COORDINATOR_EMAIL ?? "dylan@padea.com.au",
     subject: `[Padea Flag] ${title}`,
     html: flagEmail({
       coordinatorName: "Dylan",

@@ -178,7 +178,7 @@ export async function GET() {
     if (pendingOrdersSummary.length > 0) {
       try {
         await sendEmail({
-          to: "dylan@padea.com.au",
+          to: process.env.COORDINATOR_EMAIL ?? "dylan@padea.com.au",
           subject: `Review required — meal orders for week of ${pendingOrdersSummary[0].sessionDate}`,
           html: pendingOrdersEmail({
             coordinatorName: "Dylan",
