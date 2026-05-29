@@ -67,15 +67,30 @@ export interface RestrictionSet {
 
 // ─── Date / Time Helpers ─────────────────────────────────────────────────────
 
-export function getNextWeekDate(dayOfWeek: string): string {
+// ORDERING_WEEK_OVERRIDE: set to a Monday date (YYYY-MM-DD) to generate orders for that
+// specific week. Used for demo purposes only.
+function getTargetMonday(): Date {
+  const override = process.env.ORDERING_WEEK_OVERRIDE;
+  if (override) {
+    const [y, m, d] = override.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    if (!isNaN(date.getTime())) {
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+  }
+  // Default: calculate next week's Monday from today
   const today = new Date();
   const todayDay = today.getDay(); // 0=Sun
-  // Always go to next week's Monday
   const daysToNextMonday = todayDay === 0 ? 1 : 8 - todayDay;
   const nextMonday = new Date(today);
   nextMonday.setDate(today.getDate() + daysToNextMonday);
   nextMonday.setHours(0, 0, 0, 0);
+  return nextMonday;
+}
 
+export function getNextWeekDate(dayOfWeek: string): string {
+  const nextMonday = getTargetMonday();
   const offsets: Record<string, number> = {
     Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3,
     Friday: 4, Saturday: 5, Sunday: 6,
@@ -104,6 +119,8 @@ export function getArrivalTime(dinnerTime: string | null): string {
 // ─── Database Queries ─────────────────────────────────────────────────────────
 
 export async function getNextWeekSessions(): Promise<SessionRow[]> {
+  // getNextWeekDate (called per session) uses getTargetMonday(), which respects
+  // ORDERING_WEEK_OVERRIDE — so all date calculations for this run target the same week.
   const { data, error } = await supabaseAdmin
     .from("sessions")
     .select(`
